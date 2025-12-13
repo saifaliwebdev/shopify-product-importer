@@ -67,7 +67,7 @@ app.post(
   shopify.processWebhooks({ webhookHandlers: {} })
 );
 
-// API Routes - Preview temporarily bypasses auth
+// API Routes - Preview and Single Import temporarily bypass auth for testing
 app.post("/api/import/preview", async (req, res) => {
   try {
     const { url } = req.body;
@@ -84,6 +84,54 @@ app.post("/api/import/preview", async (req, res) => {
 
   } catch (error) {
     console.error("❌ Preview error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/import/single", async (req, res) => {
+  try {
+    const { url, options } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: "URL is required" });
+    }
+
+    console.log("📦 Import request for URL:", url);
+
+    // Mock session for testing (temporary)
+    const mockSession = {
+      shop: "test-shop.myshopify.com",
+      accessToken: "mock-token-for-testing"
+    };
+
+    // 1. Scrape product
+    const Scraper = (await import("./services/scraper/index.js")).default;
+    const scrapeResult = await Scraper.scrapeProduct(url);
+
+    if (!scrapeResult.success) {
+      return res.status(400).json({
+        error: "Failed to scrape product",
+        details: scrapeResult.error
+      });
+    }
+
+    console.log("✅ Scraping successful, product:", scrapeResult.product.title);
+
+    // 2. For now, just return success without actually importing
+    // This allows us to test the full flow
+    res.json({
+      success: true,
+      message: "Product scraped successfully (import simulation)",
+      product: {
+        id: `mock-${Date.now()}`,
+        title: scrapeResult.product.title,
+        handle: scrapeResult.product.title.toLowerCase().replace(/\s+/g, '-'),
+        status: "draft"
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Import error:", error);
     res.status(500).json({ error: error.message });
   }
 });
