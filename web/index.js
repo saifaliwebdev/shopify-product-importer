@@ -14,7 +14,6 @@ import importRoutes from "./routes/import.js";
 import productRoutes from "./routes/products.js";
 import settingsRoutes from "./routes/settings.js";
 
-// Initialize
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -23,24 +22,19 @@ const PORT = process.env.PORT || 3000;
 // Connect to MongoDB
 connectDB();
 
-// Trust proxy
-app.set("trust proxy", 1);
+// Trust proxy - IMPORTANT for Railway
+app.set("trust proxy", true);
 
 // Middleware
 app.use(compression());
 app.use(morgan("dev"));
+app.use(cors({ origin: true, credentials: true }));
 
-// CORS
-app.use(cors({
-  origin: true,
-  credentials: true,
-}));
-
-// Headers for iframe
+// Headers
 app.use((req, res, next) => {
   res.setHeader(
-    'Content-Security-Policy',
-    `frame-ancestors https://*.myshopify.com https://admin.shopify.com;`
+    "Content-Security-Policy",
+    "frame-ancestors https://*.myshopify.com https://admin.shopify.com;"
   );
   next();
 });
@@ -48,32 +42,18 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// ========================================
-// STATIC FILES - SABSE PEHLE (No Auth!)
-// ========================================
+// Static files FIRST
 const distPath = path.join(__dirname, "../frontend/dist");
-
-// Favicon
-app.get("/favicon.ico", (req, res) => {
-  res.status(204).end(); // No favicon, return empty
-});
-
-// All static assets
+app.get("/favicon.ico", (req, res) => res.status(204).end());
 app.use("/assets", express.static(path.join(distPath, "assets")));
-
-// Other static files
 app.use(express.static(distPath, { index: false }));
 
-// ========================================
-// HEALTH CHECK
-// ========================================
+// Health check
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({ status: "ok" });
 });
 
-// ========================================
-// SHOPIFY AUTH
-// ========================================
+// Shopify Auth
 app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
@@ -84,42 +64,26 @@ app.get(
 // Webhooks
 app.post(
   shopify.config.webhooks.path,
-  shopify.processWebhooks({
-    webhookHandlers: {},
-  })
+  shopify.processWebhooks({ webhookHandlers: {} })
 );
 
-// ========================================
-// API ROUTES (Protected)
-// ========================================
+// API Routes
 app.use("/api/*", shopify.validateAuthenticatedSession());
 app.use("/api/import", importRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/settings", settingsRoutes);
 
-app.get("/api/session", async (req, res) => {
-  try {
-    const session = res.locals.shopify.session;
-    res.json({ shop: session.shop, scope: session.scope });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ========================================
-// FRONTEND (Auth Required)
-// ========================================
-app.get("*", shopify.ensureInstalledOnShop(), async (req, res) => {
+// Frontend
+app.get("*", shopify.ensureInstalledOnShop(), (req, res) => {
   res.sendFile(path.join(distPath, "index.html"));
 });
 
-// Error Handler
+// Error handler
 app.use((err, req, res, next) => {
   console.error("Error:", err.message);
   res.status(500).json({ error: err.message });
 });
 
-// Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
