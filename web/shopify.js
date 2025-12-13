@@ -9,8 +9,6 @@ const hostName = HOST.replace(/https?:\/\//, "").replace(/\/$/, "");
 console.log("=== Shopify Config ===");
 console.log("HOST:", HOST);
 console.log("hostName:", hostName);
-console.log("API Key:", process.env.SHOPIFY_API_KEY ? "SET" : "NOT SET");
-console.log("API Secret:", process.env.SHOPIFY_API_SECRET ? "SET" : "NOT SET");
 console.log("====================");
 
 // Simple In-Memory Session Storage
@@ -20,11 +18,13 @@ class SimpleSessionStorage {
   }
 
   async storeSession(session) {
+    console.log("Storing session:", session.id);
     this.sessions.set(session.id, session);
     return true;
   }
 
   async loadSession(id) {
+    console.log("Loading session:", id);
     return this.sessions.get(id);
   }
 
@@ -75,6 +75,11 @@ const shopify = shopifyApp({
     path: "/api/webhooks",
   },
   sessionStorage,
+  useOnlineTokens: true,
+  cookieOptions: {
+    secure: true,
+    sameSite: "none",
+  },
 });
 
 export default shopify;
