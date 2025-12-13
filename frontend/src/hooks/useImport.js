@@ -53,15 +53,12 @@ export function useImport() {
     formData.append("options", JSON.stringify(options));
 
     try {
-      const response = await fetch("/api/import/bulk", {
-        method: "POST",
-        body: formData,
-      });
-      return await response.json();
+      const data = await post("/api/import/bulk", formData);
+      return data;
     } catch (err) {
       return { success: false, error: err.message };
     }
-  }, []);
+  }, [post]);
 
   // Check job status
   const checkJobStatus = useCallback(async (jobId) => {
