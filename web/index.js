@@ -67,7 +67,28 @@ app.post(
   shopify.processWebhooks({ webhookHandlers: {} })
 );
 
-// API Routes
+// API Routes - Preview temporarily bypasses auth
+app.post("/api/import/preview", async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: "URL is required" });
+    }
+
+    console.log("🔍 Preview request for URL:", url);
+    const Scraper = (await import("./services/scraper/index.js")).default;
+    const result = await Scraper.scrapeProduct(url);
+    console.log("✅ Preview result:", result.success ? "Success" : "Failed");
+    res.json(result);
+
+  } catch (error) {
+    console.error("❌ Preview error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Authenticated routes
 app.use("/api/*", shopify.validateAuthenticatedSession());
 app.use("/api/import", importRoutes);
 app.use("/api/products", productRoutes);

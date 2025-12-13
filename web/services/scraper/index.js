@@ -18,11 +18,23 @@ class ProductScraper {
    */
   detectPlatform(url) {
     const urlLower = url.toLowerCase();
-    
-    if (urlLower.includes("aliexpress.com")) return "aliexpress";
-    if (urlLower.includes("amazon.com") || urlLower.includes("amazon.")) return "amazon";
-    if (urlLower.includes("myshopify.com") || this.isShopifyStore(url)) return "shopify";
-    
+
+    console.log("🔍 Detecting platform for:", urlLower);
+
+    if (urlLower.includes("aliexpress.com")) {
+      console.log("📦 Detected: AliExpress");
+      return "aliexpress";
+    }
+    if (urlLower.includes("amazon.com") || urlLower.includes("amazon.")) {
+      console.log("📦 Detected: Amazon");
+      return "amazon";
+    }
+    if (urlLower.includes("myshopify.com") || this.isShopifyStore(url)) {
+      console.log("📦 Detected: Shopify");
+      return "shopify";
+    }
+
+    console.log("📦 Detected: Generic");
     return "generic";
   }
 

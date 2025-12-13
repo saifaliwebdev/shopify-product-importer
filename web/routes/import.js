@@ -53,6 +53,7 @@ router.post("/single", async (req, res) => {
 /**
  * POST /api/import/preview
  * Preview product before import (scrape only)
+ * TEMPORARILY BYPASSING AUTH FOR TESTING
  */
 router.post("/preview", async (req, res) => {
   try {
@@ -62,11 +63,13 @@ router.post("/preview", async (req, res) => {
       return res.status(400).json({ error: "URL is required" });
     }
 
+    console.log("🔍 Preview request for URL:", url);
     const result = await Scraper.scrapeProduct(url);
+    console.log("✅ Preview result:", result.success ? "Success" : "Failed");
     res.json(result);
 
   } catch (error) {
-    console.error("Preview error:", error);
+    console.error("❌ Preview error:", error);
     res.status(500).json({ error: error.message });
   }
 });
