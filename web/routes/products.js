@@ -43,10 +43,13 @@ router.get("/collections", async (req, res) => {
     const session = res.locals.shopify.session;
 
     // Use REST API instead of GraphQL for better reliability
-    const collections = await shopify.api.rest.CustomCollection.all({
+    const response = await shopify.api.rest.CustomCollection.all({
       session: session,
       limit: 100,
     });
+
+    // Handle different response formats
+    const collections = Array.isArray(response) ? response : (response.data || []);
 
     // Transform to match expected format
     const formattedCollections = collections.map(collection => ({
