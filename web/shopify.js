@@ -21,28 +21,58 @@ try {
     "product-importer"
   );
   console.log("✅ MongoDB Session Storage initialized");
+
+  // Test the connection by trying to store a test session
+  const testSession = {
+    id: "test-connection",
+    shop: "test-shop",
+    state: "test-state",
+    isOnline: false
+  };
+
+  sessionStorage.storeSession(testSession).then(() => {
+    console.log("✅ MongoDB Session Storage connection test passed");
+    return sessionStorage.deleteSession("test-connection");
+  }).then(() => {
+    console.log("✅ MongoDB Session Storage delete test passed");
+  }).catch((error) => {
+    console.error("❌ MongoDB Session Storage test failed:", error.message);
+    throw error;
+  });
+
 } catch (error) {
-  console.error("❌ MongoDB Session Storage failed:", error.message);
+  console.error("❌ MongoDB Session Storage initialization failed:", error.message);
+  console.log("⚠️  Falling back to in-memory session storage");
+
   // Fallback to simple storage
   sessionStorage = {
     sessions: new Map(),
     async storeSession(session) {
+      console.log(`📝 Storing session in memory: ${session.id}`);
       this.sessions.set(session.id, session);
       return true;
     },
     async loadSession(id) {
-      return this.sessions.get(id);
+      const session = this.sessions.get(id);
+      console.log(`📖 Loading session from memory: ${id} - ${session ? 'found' : 'not found'}`);
+      return session;
     },
     async deleteSession(id) {
+      console.log(`🗑️  Deleting session from memory: ${id}`);
       this.sessions.delete(id);
       return true;
     },
     async deleteSessions(ids) {
-      ids.forEach(id => this.sessions.delete(id));
+      ids.forEach(id => {
+        console.log(`🗑️  Deleting session from memory: ${id}`);
+        this.sessions.delete(id);
+      });
       return true;
     },
     async findSessionsByShop(shop) {
-      return [...this.sessions.values()].filter(s => s.shop === shop);
+      const sessions = [...this.sessions.values()].filter(s => s.shop === shop);
+      console.log(`🔍 Found ${sessions.length} sessions for shop: ${shop}`);
+      return sessions;
     }
   };
 }
