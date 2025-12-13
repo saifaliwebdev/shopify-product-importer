@@ -1,19 +1,19 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 export function useApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [app, setApp] = useState(null);
+  const appRef = useRef(null);
 
   useEffect(() => {
     try {
       const appBridge = useAppBridge();
       console.log("App Bridge available:", !!appBridge);
-      setApp(appBridge);
+      appRef.current = appBridge;
     } catch (err) {
       console.warn("App Bridge not available, falling back to regular fetch:", err.message);
-      setApp(null);
+      appRef.current = null;
     }
   }, []);
 
@@ -24,10 +24,10 @@ export function useApi() {
     try {
       let response;
 
-      if (app && typeof app.authenticatedFetch === 'function') {
+      if (appRef.current && typeof appRef.current.authenticatedFetch === 'function') {
         // Use authenticatedFetch from App Bridge for embedded apps
         console.log("✅ Using authenticatedFetch for:", endpoint);
-        response = await app.authenticatedFetch(endpoint, {
+        response = await appRef.current.authenticatedFetch(endpoint, {
           headers: {
             "Content-Type": "application/json",
             ...options.headers,
@@ -60,7 +60,7 @@ export function useApi() {
     } finally {
       setLoading(false);
     }
-  }, [app]);
+  }, []);
 
   const get = useCallback((endpoint) => fetchApi(endpoint), [fetchApi]);
 
