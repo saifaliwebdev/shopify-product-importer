@@ -51,9 +51,7 @@ router.get("/collections", async (req, res) => {
               id
               title
               handle
-              products(first: 0) {
-                totalCount
-              }
+              productsCount
             }
           }
         }

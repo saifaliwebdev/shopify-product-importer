@@ -36,7 +36,9 @@ class ProductImporter {
 
       // 3. Create product in Shopify
       const client = new shopify.api.clients.Graphql({ session });
-      
+
+      console.log("📦 Creating product in Shopify:", productData.title);
+
       const productInput = {
         title: productData.title,
         descriptionHtml: productData.description,
@@ -45,6 +47,8 @@ class ProductImporter {
         tags: productData.tags || [],
         status: status.toUpperCase(),
       };
+
+      console.log("📦 Product input:", JSON.stringify(productInput, null, 2));
 
       // Create product
       const createResponse = await client.query({
@@ -78,14 +82,24 @@ class ProductImporter {
         },
       });
 
+      console.log("📦 Product creation response:", JSON.stringify(createResponse.body, null, 2));
+
       const result = createResponse.body.data.productCreate;
-      
+
       if (result.userErrors?.length > 0) {
+        console.error("📦 Product creation user errors:", result.userErrors);
         throw new Error(result.userErrors.map(e => e.message).join(", "));
+      }
+
+      if (!result.product) {
+        console.error("📦 No product returned from creation");
+        throw new Error("Product creation failed - no product returned");
       }
 
       const createdProduct = result.product;
       const productId = createdProduct.id;
+
+      console.log("✅ Product created successfully:", productId);
 
       // 4. Add variants
       if (variants.length > 0) {
