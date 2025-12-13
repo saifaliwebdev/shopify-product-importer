@@ -1,6 +1,5 @@
 import "@shopify/shopify-api/adapters/node";
-import { shopifyApp } from "@shopify/shopify-app-express";
-import { MongoDBSessionStorage } from "@shopify/shopify-app-session-storage-mongodb";
+import { shopifyApp, MemorySessionStorage } from "@shopify/shopify-app-express";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 
 // Get host without protocol
@@ -14,11 +13,8 @@ console.log("API Key:", process.env.SHOPIFY_API_KEY ? "SET" : "NOT SET");
 console.log("API Secret:", process.env.SHOPIFY_API_SECRET ? "SET" : "NOT SET");
 console.log("====================");
 
-// MongoDB Session Storage
-const sessionStorage = new MongoDBSessionStorage(
-  process.env.MONGODB_URI,
-  "product-importer"
-);
+// Use Memory Session Storage (Simple & Reliable)
+const sessionStorage = new MemorySessionStorage();
 
 const shopify = shopifyApp({
   api: {
@@ -33,7 +29,7 @@ const shopify = shopifyApp({
       "write_inventory",
     ],
     hostName: hostName,
-    hostScheme: HOST.startsWith("https") ? "https" : "http",
+    hostScheme: "https",
     isEmbeddedApp: true,
   },
   auth: {
