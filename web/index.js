@@ -23,6 +23,9 @@ const PORT = process.env.PORT || 3000;
 // Connect to MongoDB
 connectDB();
 
+// Trust proxy (Important for Railway/Heroku)
+app.set("trust proxy", 1);
+
 // Middleware
 app.use(compression());
 app.use(morgan("dev"));
@@ -33,9 +36,9 @@ app.use(cors({
   credentials: true,
 }));
 
-// Allow Shopify to embed app in iframe
+// Cookie settings for embedded apps
 app.use((req, res, next) => {
-  const shop = req.query.shop || '';
+  // Set headers for iframe embedding
   res.setHeader(
     'Content-Security-Policy',
     `frame-ancestors https://*.myshopify.com https://admin.shopify.com;`
@@ -51,7 +54,7 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 // ========================================
 app.use("/assets", express.static(path.join(__dirname, "../frontend/dist/assets")));
 app.use(express.static(path.join(__dirname, "../frontend/dist"), {
-  index: false  // Don't serve index.html automatically
+  index: false
 }));
 
 // Health Check
@@ -98,7 +101,7 @@ app.get("/api/session", async (req, res) => {
 });
 
 // ========================================
-// FRONTEND - BAAD MEIN (Auth Required)
+// FRONTEND
 // ========================================
 app.get("*", shopify.ensureInstalledOnShop(), async (req, res) => {
   res.set({
