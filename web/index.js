@@ -1,7 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import helmet from "helmet";
 import compression from "compression";
 import morgan from "morgan";
 import path from "path";
@@ -24,25 +23,28 @@ const PORT = process.env.PORT || 3000;
 // Connect to MongoDB
 connectDB();
 
-// Security & Performance Middleware
-// app.use(helmet({
-//   contentSecurityPolicy: false, // Required for Shopify embedded apps
-// }));
-
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      frameAncestors: ["https://*.myshopify.com", "https://admin.shopify.com"],
-    },
-  },
-  crossOriginEmbedderPolicy: false,
-}));
+// Middleware
 app.use(compression());
 app.use(morgan("dev"));
+
+// CORS
 app.use(cors({
   origin: true,
   credentials: true,
 }));
+
+// Allow Shopify to embed app in iframe
+app.use((req, res, next) => {
+  const shop = req.query.shop || req.body?.shop || '';
+  if (shop) {
+    res.setHeader(
+      'Content-Security-Policy',
+      `frame-ancestors https://${shop} https://admin.shopify.com;`
+    );
+  }
+  next();
+});
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
@@ -63,16 +65,7 @@ app.get(
 app.post(
   shopify.config.webhooks.path,
   shopify.processWebhooks({
-    webhookHandlers: {
-      APP_UNINSTALLED: {
-        deliveryMethod: "http",
-        callbackUrl: "/api/webhooks",
-        callback: async (topic, shop, body) => {
-          console.log(`App uninstalled from ${shop}`);
-          // Clean up shop data if needed
-        },
-      },
-    },
+    webhookHandlers: {},
   })
 );
 
@@ -95,7 +88,7 @@ app.get("/api/session", async (req, res) => {
   }
 });
 
-// Serve Frontend (React App)
+// Serve Frontend
 app.use(shopify.ensureInstalledOnShop());
 app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
@@ -119,7 +112,6 @@ app.listen(PORT, () => {
   ================================
   Port: ${PORT}
   Environment: ${process.env.NODE_ENV || "development"}
-  Host: ${process.env.HOST || "http://localhost:" + PORT}
   `);
 });
 
