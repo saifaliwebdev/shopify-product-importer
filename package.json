@@ -7,36 +7,22 @@
   "scripts": {
     "dev": "node web/index.js",
     "start": "node web/index.js",
-    "build:frontend": "cd frontend && npm run build",
-    "shopify": "shopify app",
-    "deploy": "shopify app deploy"
+    "build:frontend": "cd frontend && npm run build"
   },
   "dependencies": {
     "@shopify/shopify-api": "^10.0.0",
     "@shopify/shopify-app-express": "^4.0.0",
     "@shopify/shopify-app-session-storage-mongodb": "^3.0.0",
-    "axios": "^1.6.0",
-    "bull": "^4.11.0",
-    "cheerio": "^1.0.0-rc.12",
-    "cloudinary": "^1.41.0",
-    "compression": "^1.7.4",
-    "cors": "^2.8.5",
-    "csv-parser": "^3.0.0",
-    "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "git": "^0.1.5",
-    "helmet": "^7.1.0",
-    "ioredis": "^5.3.0",
     "mongoose": "^8.0.0",
-    "morgan": "^1.10.0",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
     "multer": "^1.4.5-lts.1",
-    "puppeteer": "^21.0.0",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@shopify/app": "^3.50.0",
-    "@shopify/cli": "^3.50.0",
-    "nodemon": "^3.0.0"
+    "xlsx": "^0.18.5",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5",
+    "compression": "^1.7.4",
+    "morgan": "^1.10.0"
   },
   "engines": {
     "node": ">=18.0.0"
