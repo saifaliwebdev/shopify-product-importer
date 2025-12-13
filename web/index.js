@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 3000;
 // Connect to MongoDB
 connectDB();
 
-// Trust proxy (Important for Railway/Heroku)
+// Trust proxy
 app.set("trust proxy", 1);
 
 // Middleware
@@ -36,9 +36,8 @@ app.use(cors({
   credentials: true,
 }));
 
-// Cookie settings for embedded apps
+// Headers for iframe
 app.use((req, res, next) => {
-  // Set headers for iframe embedding
   res.setHeader(
     'Content-Security-Policy',
     `frame-ancestors https://*.myshopify.com https://admin.shopify.com;`
@@ -50,14 +49,24 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // ========================================
-// STATIC FILES - PEHLE (No Auth Required)
+// STATIC FILES - SABSE PEHLE (No Auth!)
 // ========================================
-app.use("/assets", express.static(path.join(__dirname, "../frontend/dist/assets")));
-app.use(express.static(path.join(__dirname, "../frontend/dist"), {
-  index: false
-}));
+const distPath = path.join(__dirname, "../frontend/dist");
 
-// Health Check
+// Favicon
+app.get("/favicon.ico", (req, res) => {
+  res.status(204).end(); // No favicon, return empty
+});
+
+// All static assets
+app.use("/assets", express.static(path.join(distPath, "assets")));
+
+// Other static files
+app.use(express.static(distPath, { index: false }));
+
+// ========================================
+// HEALTH CHECK
+// ========================================
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
@@ -91,41 +100,28 @@ app.use("/api/settings", settingsRoutes);
 app.get("/api/session", async (req, res) => {
   try {
     const session = res.locals.shopify.session;
-    res.json({
-      shop: session.shop,
-      scope: session.scope,
-    });
+    res.json({ shop: session.shop, scope: session.scope });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 // ========================================
-// FRONTEND
+// FRONTEND (Auth Required)
 // ========================================
 app.get("*", shopify.ensureInstalledOnShop(), async (req, res) => {
-  res.set({
-    'Content-Security-Policy': `frame-ancestors https://*.myshopify.com https://admin.shopify.com;`,
-  });
-  res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+  res.sendFile(path.join(distPath, "index.html"));
 });
 
 // Error Handler
 app.use((err, req, res, next) => {
-  console.error("Error:", err);
-  res.status(err.status || 500).json({
-    error: err.message || "Internal Server Error",
-  });
+  console.error("Error:", err.message);
+  res.status(500).json({ error: err.message });
 });
 
 // Start Server
 app.listen(PORT, () => {
-  console.log(`
-  🚀 Product Importer App Running!
-  ================================
-  Port: ${PORT}
-  Environment: ${process.env.NODE_ENV || "development"}
-  `);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
 
 export default app;
