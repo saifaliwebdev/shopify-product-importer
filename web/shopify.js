@@ -1,12 +1,24 @@
 import "@shopify/shopify-api/adapters/node";
 import { shopifyApp } from "@shopify/shopify-app-express";
-import { MemorySessionStorage } from "@shopify/shopify-app-session-storage-memory";
+import { MongoDBSessionStorage } from "@shopify/shopify-app-session-storage-mongodb";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
 
-const isDev = process.env.NODE_ENV === "development";
+// Get host without protocol
+const HOST = process.env.HOST || "localhost:3000";
+const hostName = HOST.replace(/https?:\/\//, "").replace(/\/$/, "");
 
-// Memory Session Storage (for testing)
-const sessionStorage = new MemorySessionStorage();
+console.log("=== Shopify Config ===");
+console.log("HOST:", HOST);
+console.log("hostName:", hostName);
+console.log("API Key:", process.env.SHOPIFY_API_KEY ? "SET" : "NOT SET");
+console.log("API Secret:", process.env.SHOPIFY_API_SECRET ? "SET" : "NOT SET");
+console.log("====================");
+
+// MongoDB Session Storage
+const sessionStorage = new MongoDBSessionStorage(
+  process.env.MONGODB_URI,
+  "product-importer"
+);
 
 const shopify = shopifyApp({
   api: {
@@ -20,8 +32,8 @@ const shopify = shopifyApp({
       "read_inventory",
       "write_inventory",
     ],
-    hostName: process.env.HOST?.replace(/https?:\/\//, "") || "localhost:3000",
-    hostScheme: isDev ? "http" : "https",
+    hostName: hostName,
+    hostScheme: HOST.startsWith("https") ? "https" : "http",
     isEmbeddedApp: true,
   },
   auth: {
