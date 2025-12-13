@@ -12,7 +12,7 @@ redirect_urls = [
 ]
 
 [webhooks]
-api_version = "2025-10"
+api_version = "2024-04"
 
 [build]
 include_config_on_deploy = true
