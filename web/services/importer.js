@@ -82,9 +82,9 @@ class ProductImporter {
         },
       });
 
-      console.log("📦 Product creation response:", JSON.stringify(createResponse.body, null, 2));
+      console.log("📦 Product creation response:", JSON.stringify(createResponse, null, 2));
 
-      const result = createResponse.body.data.productCreate;
+      const result = createResponse.body?.data?.productCreate || createResponse.data?.productCreate;
 
       if (result.userErrors?.length > 0) {
         console.error("📦 Product creation user errors:", result.userErrors);
