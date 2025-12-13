@@ -250,7 +250,9 @@ class ProductImporter {
    * Update default variant price
    */
   async updateDefaultVariant(client, variantId, variantData) {
-    await client.query({
+    console.log("🔄 Updating variant:", variantId, "with data:", variantData);
+
+    const response = await client.query({
       data: {
         query: `
           mutation productVariantUpdate($input: ProductVariantInput!) {
@@ -278,6 +280,17 @@ class ProductImporter {
         },
       },
     });
+
+    console.log("🔄 Variant update response:", JSON.stringify(response, null, 2));
+
+    const result = response.body?.data?.productVariantUpdate || response.data?.productVariantUpdate;
+
+    if (result.userErrors?.length > 0) {
+      console.error("🔄 Variant update user errors:", result.userErrors);
+      throw new Error("Variant update failed: " + result.userErrors.map(e => e.message).join(", "));
+    }
+
+    console.log("✅ Variant updated successfully");
   }
 
   /**
