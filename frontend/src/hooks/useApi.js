@@ -1,17 +1,21 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 export function useApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [app, setApp] = useState(null);
 
-  let app;
-  try {
-    app = useAppBridge();
-  } catch (err) {
-    // App Bridge not available (development mode)
-    console.warn("App Bridge not available, falling back to regular fetch");
-  }
+  useEffect(() => {
+    try {
+      const appBridge = useAppBridge();
+      console.log("App Bridge available:", !!appBridge);
+      setApp(appBridge);
+    } catch (err) {
+      console.warn("App Bridge not available, falling back to regular fetch:", err.message);
+      setApp(null);
+    }
+  }, []);
 
   const fetchApi = useCallback(async (endpoint, options = {}) => {
     setLoading(true);
@@ -20,9 +24,9 @@ export function useApi() {
     try {
       let response;
 
-      if (app && app.authenticatedFetch) {
+      if (app && typeof app.authenticatedFetch === 'function') {
         // Use authenticatedFetch from App Bridge for embedded apps
-        console.log("Using authenticatedFetch for:", endpoint);
+        console.log("✅ Using authenticatedFetch for:", endpoint);
         response = await app.authenticatedFetch(endpoint, {
           headers: {
             "Content-Type": "application/json",
@@ -32,7 +36,7 @@ export function useApi() {
         });
       } else {
         // Fallback to regular fetch (development)
-        console.log("Using regular fetch for:", endpoint);
+        console.log("⚠️ Using regular fetch for:", endpoint);
         response = await fetch(endpoint, {
           headers: {
             "Content-Type": "application/json",
@@ -50,7 +54,7 @@ export function useApi() {
 
       return data;
     } catch (err) {
-      console.error("API call failed:", err.message);
+      console.error("❌ API call failed:", err.message);
       setError(err.message);
       throw err;
     } finally {
