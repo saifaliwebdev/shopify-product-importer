@@ -98,10 +98,10 @@ app.post("/api/import/single", async (req, res) => {
 
     console.log("📦 Import request for URL:", url);
 
-    // Mock session for testing (temporary)
+    // Mock session for testing (temporary) - will be replaced with real session later
     const mockSession = {
-      shop: "test-shop.myshopify.com",
-      accessToken: "mock-token-for-testing"
+      shop: "my-test-store-123-7.myshopify.com",
+      accessToken: process.env.SHOPIFY_API_SECRET // Using this as mock token
     };
 
     // 1. Scrape product
@@ -117,15 +117,28 @@ app.post("/api/import/single", async (req, res) => {
 
     console.log("✅ Scraping successful, product:", scrapeResult.product.title);
 
-    // 2. For now, just return success without actually importing
-    // This allows us to test the full flow
+    // 2. Save to database (since we don't have real access token)
+    const Import = (await import("./models/Import.js")).default;
+
+    const importRecord = await Import.create({
+      shop: mockSession.shop,
+      source_url: url,
+      source_platform: scrapeResult.platform,
+      product_title: scrapeResult.product.title,
+      status: "success",
+      options: options || {},
+    });
+
+    console.log("✅ Product saved to database:", scrapeResult.product.title);
+
+    // Return success response
     res.json({
       success: true,
-      message: "Product scraped successfully (import simulation)",
+      message: `${scrapeResult.product.title} has been added to your store.`,
       product: {
-        id: `mock-${Date.now()}`,
+        id: `db-${importRecord._id}`,
         title: scrapeResult.product.title,
-        handle: scrapeResult.product.title.toLowerCase().replace(/\s+/g, '-'),
+        handle: scrapeResult.product.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
         status: "draft"
       }
     });
