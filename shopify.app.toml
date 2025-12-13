@@ -8,11 +8,11 @@ scopes = "read_products,write_products,read_inventory,write_inventory"
 
 [auth]
 redirect_urls = [
-  "https://581112c08aa2.ngrok-free.app/api/auth/callback"
+  "https://shopify-product-importer-production.up.railway.app/api/auth/callback"
 ]
 
 [webhooks]
-api_version = "2024-01"
+api_version = "2025-10"
 
 [build]
 include_config_on_deploy = true
