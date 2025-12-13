@@ -1,9 +1,23 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { Provider } from "@shopify/app-bridge-react";
 import App from "./App";
+
+// Get the shop from URL parameters (Shopify provides this)
+const urlParams = new URLSearchParams(window.location.search);
+const shop = urlParams.get('shop');
+
+// Create App Bridge config
+const config = {
+  apiKey: 'd0f0ec29327c11fc4d6b093d6ecb77c0', // Your API key
+  host: urlParams.get('host'), // Required for embedded apps
+  forceRedirect: true,
+};
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <Provider config={config}>
+      <App />
+    </Provider>
   </React.StrictMode>
 );
