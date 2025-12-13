@@ -4,21 +4,43 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 export function useApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const app = useAppBridge();
+
+  let app;
+  try {
+    app = useAppBridge();
+  } catch (err) {
+    // App Bridge not available (development mode)
+    console.warn("App Bridge not available, falling back to regular fetch");
+  }
 
   const fetchApi = useCallback(async (endpoint, options = {}) => {
     setLoading(true);
     setError(null);
 
     try {
-      // Use authenticatedFetch from App Bridge for API calls
-      const response = await app.authenticatedFetch(endpoint, {
-        headers: {
-          "Content-Type": "application/json",
-          ...options.headers,
-        },
-        ...options,
-      });
+      let response;
+
+      if (app && app.authenticatedFetch) {
+        // Use authenticatedFetch from App Bridge for embedded apps
+        console.log("Using authenticatedFetch for:", endpoint);
+        response = await app.authenticatedFetch(endpoint, {
+          headers: {
+            "Content-Type": "application/json",
+            ...options.headers,
+          },
+          ...options,
+        });
+      } else {
+        // Fallback to regular fetch (development)
+        console.log("Using regular fetch for:", endpoint);
+        response = await fetch(endpoint, {
+          headers: {
+            "Content-Type": "application/json",
+            ...options.headers,
+          },
+          ...options,
+        });
+      }
 
       const data = await response.json();
 
@@ -28,6 +50,7 @@ export function useApi() {
 
       return data;
     } catch (err) {
+      console.error("API call failed:", err.message);
       setError(err.message);
       throw err;
     } finally {
