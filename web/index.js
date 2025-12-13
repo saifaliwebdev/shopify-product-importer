@@ -67,87 +67,9 @@ app.post(
   shopify.processWebhooks({ webhookHandlers: {} })
 );
 
-// API Routes - Preview and Single Import temporarily bypass auth for testing
-app.post("/api/import/preview", async (req, res) => {
-  try {
-    const { url } = req.body;
 
-    if (!url) {
-      return res.status(400).json({ error: "URL is required" });
-    }
 
-    console.log("🔍 Preview request for URL:", url);
-    const Scraper = (await import("./services/scraper/index.js")).default;
-    const result = await Scraper.scrapeProduct(url);
-    console.log("✅ Preview result:", result.success ? "Success" : "Failed");
-    res.json(result);
 
-  } catch (error) {
-    console.error("❌ Preview error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/import/single", async (req, res) => {
-  try {
-    const { url, options } = req.body;
-
-    if (!url) {
-      return res.status(400).json({ error: "URL is required" });
-    }
-
-    console.log("📦 Import request for URL:", url);
-
-    // Mock session for testing (temporary) - will be replaced with real session later
-    const mockSession = {
-      shop: "my-test-store-123-7.myshopify.com",
-      accessToken: process.env.SHOPIFY_API_SECRET // Using this as mock token
-    };
-
-    // 1. Scrape product
-    const Scraper = (await import("./services/scraper/index.js")).default;
-    const scrapeResult = await Scraper.scrapeProduct(url);
-
-    if (!scrapeResult.success) {
-      return res.status(400).json({
-        error: "Failed to scrape product",
-        details: scrapeResult.error
-      });
-    }
-
-    console.log("✅ Scraping successful, product:", scrapeResult.product.title);
-
-    // 2. Save to database (since we don't have real access token)
-    const Import = (await import("./models/Import.js")).default;
-
-    const importRecord = await Import.create({
-      shop: mockSession.shop,
-      source_url: url,
-      source_platform: scrapeResult.platform,
-      product_title: scrapeResult.product.title,
-      status: "success",
-      options: options || {},
-    });
-
-    console.log("✅ Product saved to database:", scrapeResult.product.title);
-
-    // Return success response
-    res.json({
-      success: true,
-      message: `${scrapeResult.product.title} has been added to your store.`,
-      product: {
-        id: `db-${importRecord._id}`,
-        title: scrapeResult.product.title,
-        handle: scrapeResult.product.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
-        status: "draft"
-      }
-    });
-
-  } catch (error) {
-    console.error("❌ Import error:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Authenticated routes
 app.use("/api/*", shopify.validateAuthenticatedSession());

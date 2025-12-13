@@ -22,30 +22,63 @@ router.post("/single", async (req, res) => {
       return res.status(400).json({ error: "URL is required" });
     }
 
+    console.log("📦 Import request for URL:", url, "Shop:", session.shop);
+
     // 1. Scrape product
     const scrapeResult = await Scraper.scrapeProduct(url);
-    
+
     if (!scrapeResult.success) {
-      return res.status(400).json({ 
-        error: "Failed to scrape product", 
-        details: scrapeResult.error 
+      return res.status(400).json({
+        error: "Failed to scrape product",
+        details: scrapeResult.error
       });
     }
 
-    // 2. Import to store
+    console.log("✅ Scraping successful, product:", scrapeResult.product.title);
+
+    // 2. Import to Shopify store
     const importResult = await Importer.importProduct(
       session,
       {
         ...scrapeResult.product,
         source_platform: scrapeResult.platform,
       },
-      options
+      options || {}
     );
 
+    if (!importResult.success) {
+      return res.status(500).json({
+        error: "Failed to import to Shopify",
+        details: importResult.error
+      });
+    }
+
+    console.log("✅ Import to Shopify successful");
     res.json(importResult);
 
   } catch (error) {
-    console.error("Import error:", error);
+    console.error("❌ Import error:", error);
+
+    // Fallback: save to database even if Shopify API fails
+    try {
+      const Import = (await import("../models/Import.js")).default;
+      const session = res.locals.shopify.session;
+
+      await Import.create({
+        shop: session?.shop || "unknown",
+        source_url: req.body.url,
+        source_platform: "unknown",
+        product_title: "Import failed - check logs",
+        status: "failed",
+        error: error.message,
+        options: req.body.options || {},
+      });
+
+      console.log("📝 Import failure logged to database");
+    } catch (dbError) {
+      console.error("❌ Database logging failed:", dbError);
+    }
+
     res.status(500).json({ error: error.message });
   }
 });
@@ -53,7 +86,6 @@ router.post("/single", async (req, res) => {
 /**
  * POST /api/import/preview
  * Preview product before import (scrape only)
- * TEMPORARILY BYPASSING AUTH FOR TESTING
  */
 router.post("/preview", async (req, res) => {
   try {
