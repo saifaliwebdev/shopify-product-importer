@@ -1,7 +1,7 @@
 import "@shopify/shopify-api/adapters/node";
 import { shopifyApp } from "@shopify/shopify-app-express";
 import { MongoDBSessionStorage } from "@shopify/shopify-app-session-storage-mongodb";
-import { restResources } from "@shopify/shopify-api/rest/admin/2024-01";
+import { restResources } from "@shopify/shopify-api/rest/admin/2025-10";
 
 const HOST = process.env.HOST || "http://localhost:3000";
 const hostName = HOST.replace(/https?:\/\//, "").replace(/\/$/, "");
@@ -51,7 +51,7 @@ const shopify = shopifyApp({
   api: {
     apiKey: process.env.SHOPIFY_API_KEY,
     apiSecretKey: process.env.SHOPIFY_API_SECRET,
-    apiVersion: "2024-01",
+    apiVersion: "2025-10",
     restResources,
     scopes: process.env.SCOPES?.split(",") || [
       "read_products",
