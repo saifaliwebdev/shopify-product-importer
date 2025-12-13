@@ -35,25 +35,33 @@ app.use(cors({
 
 // Allow Shopify to embed app in iframe
 app.use((req, res, next) => {
-  const shop = req.query.shop || req.body?.shop || '';
-  if (shop) {
-    res.setHeader(
-      'Content-Security-Policy',
-      `frame-ancestors https://${shop} https://admin.shopify.com;`
-    );
-  }
+  const shop = req.query.shop || '';
+  res.setHeader(
+    'Content-Security-Policy',
+    `frame-ancestors https://*.myshopify.com https://admin.shopify.com;`
+  );
   next();
 });
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// ========================================
+// STATIC FILES - PEHLE (No Auth Required)
+// ========================================
+app.use("/assets", express.static(path.join(__dirname, "../frontend/dist/assets")));
+app.use(express.static(path.join(__dirname, "../frontend/dist"), {
+  index: false  // Don't serve index.html automatically
+}));
+
 // Health Check
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Shopify Auth
+// ========================================
+// SHOPIFY AUTH
+// ========================================
 app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
@@ -69,13 +77,14 @@ app.post(
   })
 );
 
-// API Routes (Protected)
+// ========================================
+// API ROUTES (Protected)
+// ========================================
 app.use("/api/*", shopify.validateAuthenticatedSession());
 app.use("/api/import", importRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/settings", settingsRoutes);
 
-// Get Session Info
 app.get("/api/session", async (req, res) => {
   try {
     const session = res.locals.shopify.session;
@@ -88,12 +97,13 @@ app.get("/api/session", async (req, res) => {
   }
 });
 
-// Serve Frontend
-app.use(shopify.ensureInstalledOnShop());
-app.use(express.static(path.join(__dirname, "../frontend/dist")));
-
-// SPA Fallback
-app.get("*", shopify.ensureInstalledOnShop(), (req, res) => {
+// ========================================
+// FRONTEND - BAAD MEIN (Auth Required)
+// ========================================
+app.get("*", shopify.ensureInstalledOnShop(), async (req, res) => {
+  res.set({
+    'Content-Security-Policy': `frame-ancestors https://*.myshopify.com https://admin.shopify.com;`,
+  });
   res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
 });
 
