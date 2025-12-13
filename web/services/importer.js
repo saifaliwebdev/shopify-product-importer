@@ -101,13 +101,16 @@ class ProductImporter {
 
       console.log("✅ Product created successfully:", productId);
 
-      // 4. Add variants
-      if (variants.length > 0) {
-        await this.createVariants(client, productId, variants, productData.options);
+      // 4. Update default variant price if needed
+      if (variants.length > 0 && variants[0].price && variants[0].price !== "0.00") {
+        const defaultVariantId = createdProduct.variants.edges[0].node.id;
+        console.log("📝 Updating default variant price to:", variants[0].price);
+        await this.updateDefaultVariant(client, defaultVariantId, variants[0]);
       }
 
       // 5. Add images
       if (images.length > 0) {
+        console.log("📸 Adding", images.length, "images to product");
         await this.addProductImages(client, productId, images);
       }
 
@@ -241,6 +244,40 @@ class ProductImporter {
         },
       });
     }
+  }
+
+  /**
+   * Update default variant price
+   */
+  async updateDefaultVariant(client, variantId, variantData) {
+    await client.query({
+      data: {
+        query: `
+          mutation productVariantUpdate($input: ProductVariantInput!) {
+            productVariantUpdate(input: $input) {
+              productVariant {
+                id
+                price
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            id: variantId, // Use the variantId parameter
+            price: variantData.price,
+            compareAtPrice: variantData.compare_at_price,
+            sku: variantData.sku,
+            weight: variantData.weight,
+            weightUnit: variantData.weight_unit?.toUpperCase() || "KILOGRAMS",
+          },
+        },
+      },
+    });
   }
 
   /**
