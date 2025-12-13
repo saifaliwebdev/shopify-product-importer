@@ -41,27 +41,25 @@ router.get("/", async (req, res) => {
 router.get("/collections", async (req, res) => {
   try {
     const session = res.locals.shopify.session;
-    const client = new shopify.api.clients.Graphql({ session });
 
-    const response = await client.query({
-      data: `{
-        collections(first: 100) {
-          edges {
-            node {
-              id
-              title
-              handle
-              productsCount
-            }
-          }
-        }
-      }`,
+    // Use REST API instead of GraphQL for better reliability
+    const collections = await shopify.api.rest.CustomCollection.all({
+      session: session,
+      limit: 100,
     });
 
-    const collections = response.body.data.collections.edges.map(({ node }) => node);
-    res.json(collections);
+    // Transform to match expected format
+    const formattedCollections = collections.map(collection => ({
+      id: collection.id,
+      title: collection.title,
+      handle: collection.handle,
+      productsCount: collection.products_count || 0,
+    }));
+
+    res.json(formattedCollections);
 
   } catch (error) {
+    console.error("Collections error:", error);
     res.status(500).json({ error: error.message });
   }
 });

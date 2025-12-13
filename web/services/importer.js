@@ -45,7 +45,7 @@ class ProductImporter {
         vendor: productData.vendor || "",
         productType: productData.product_type || "",
         tags: productData.tags || [],
-        status: status.toUpperCase(),
+        status: "DRAFT", // Use DRAFT for testing, can be changed to ACTIVE later
       };
 
       console.log("📦 Product input:", JSON.stringify(productInput, null, 2));
