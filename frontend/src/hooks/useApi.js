@@ -1,15 +1,18 @@
 import { useCallback, useState } from "react";
+import { useAppBridge } from "@shopify/app-bridge-react";
 
 export function useApi() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const app = useAppBridge();
 
   const fetchApi = useCallback(async (endpoint, options = {}) => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(endpoint, {
+      // Use authenticatedFetch from App Bridge for API calls
+      const response = await app.authenticatedFetch(endpoint, {
         headers: {
           "Content-Type": "application/json",
           ...options.headers,
@@ -30,7 +33,7 @@ export function useApi() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [app]);
 
   const get = useCallback((endpoint) => fetchApi(endpoint), [fetchApi]);
 
