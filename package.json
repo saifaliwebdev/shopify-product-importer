@@ -1,18 +1,15 @@
 {
   "name": "shopify-product-importer",
   "version": "1.0.0",
-  "description": "Import products from any store to Shopify",
-  "main": "web/index.js",
   "type": "module",
   "scripts": {
     "dev": "node web/index.js",
-    "start": "node web/index.js",
-    "build:frontend": "cd frontend && npm run build"
+    "start": "node web/index.js"
   },
   "dependencies": {
     "@shopify/shopify-api": "^10.0.0",
     "@shopify/shopify-app-express": "^4.0.0",
-    "@shopify/shopify-app-session-storage-mongodb": "^3.0.0",
+    "@shopify/shopify-app-session-storage-mongodb": "^3.0.5",
     "express": "^4.18.2",
     "mongoose": "^8.0.0",
     "axios": "^1.6.0",
