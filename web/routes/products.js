@@ -53,7 +53,6 @@ router.get("/collections", async (req, res) => {
               id
               title
               handle
-              productsCount
             }
           }
         }
