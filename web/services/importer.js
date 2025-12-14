@@ -167,8 +167,8 @@ class ProductImporter {
             console.error("❌ No default variant found for single variant product");
           }
         } else if (variants.length > 1 || productData.options?.length > 0) {
-          console.log("📦 Multiple variants product - creating variants one by one");
-          await this.createProductVariantsOneByOne(client, productId, variants, productData.options || []);
+          console.log("📦 Multiple variants product - creating variants individually");
+          await this.createProductVariantsIndividual(client, productId, variants, productData.options || []);
         } else {
           console.log("⏭️ Unhandled variant scenario");
         }
@@ -247,30 +247,40 @@ class ProductImporter {
     });
   }
 
-  async createProductVariantsOneByOne(client, productId, variants, options) {
-    console.log("📦 Creating", variants.length, "variants one by one");
-
-    try {
-      if (options && options.length > 0) {
-        console.log("🔧 Adding product options first...");
+  // NEW APPROACH: Create variants individually using productVariantCreate
+  async createProductVariantsIndividual(client, productId, variants, options) {
+    console.log("📦 Creating", variants.length, "variants individually");
+    
+    let createdCount = 0;
+    
+    for (let i = 0; i < variants.length; i++) {
+      const variant = variants[i];
+      
+      try {
+        console.log(`📝 Creating variant ${i + 1}/${variants.length}:`, variant.option1 || "Default");
         
-        const optionsToCreate = options.map(opt => ({
-          name: opt.name || "Option",
-          values: opt.values?.map(v => ({ name: v })) || []
-        }));
+        const variantInput = {
+          productId: productId,
+          price: variant.price,
+          compareAtPrice: variant.compare_at_price || null,
+          sku: variant.sku || "",
+          option1: variant.option1 || null,
+          option2: variant.option2 || null,
+          option3: variant.option3 || null,
+        };
 
-        const optionsResponse = await client.query({
+        const response = await client.query({
           data: {
             query: `
-              mutation productOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
-                productOptionsCreate(productId: $productId, options: $options) {
-                  product {
+              mutation productVariantCreate($input: ProductVariantInput!) {
+                productVariantCreate(input: $input) {
+                  productVariant {
                     id
-                    options {
-                      id
-                      name
-                      values
-                    }
+                    title
+                    price
+                    option1
+                    option2
+                    option3
                   }
                   userErrors {
                     field
@@ -279,109 +289,31 @@ class ProductImporter {
                 }
               }
             `,
-            variables: {
-              productId: productId,
-              options: optionsToCreate,
-            },
+            variables: { input: variantInput },
           },
         });
 
-        const optResult = optionsResponse.body?.data?.productOptionsCreate;
-        if (optResult?.userErrors?.length > 0) {
-          console.log("⚠️ Options create errors:", optResult.userErrors[0]?.message);
-        } else {
-          console.log("✅ Product options added");
-        }
-      }
-
-      console.log("🔄 Creating variants one by one...");
-      
-      let createdCount = 0;
-      for (let i = 0; i < variants.length; i++) {
-        const variant = variants[i];
+        const result = response.body?.data?.productVariantCreate;
         
-        try {
-          const variantInput = {
-            price: variant.price,
-            compareAtPrice: variant.compare_at_price || null,
-            sku: variant.sku || "",
-            optionValues: [],
-          };
-
-          if (variant.option1) {
-            variantInput.optionValues.push({
-              name: variant.option1,
-              optionName: options?.[0]?.name || "Size"
-            });
-          }
-          if (variant.option2) {
-            variantInput.optionValues.push({
-              name: variant.option2,
-              optionName: options?.[1]?.name || "Color"
-            });
-          }
-          if (variant.option3) {
-            variantInput.optionValues.push({
-              name: variant.option3,
-              optionName: options?.[2]?.name || "Material"
-            });
-          }
-
-          console.log(`📝 Creating variant ${i + 1}/${variants.length}:`, variant.option1 || "Default");
-
-          const response = await client.query({
-            data: {
-              query: `
-                mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-                  productVariantsBulkCreate(productId: $productId, variants: $variants) {
-                    productVariants {
-                      id
-                      title
-                      price
-                      optionValues {
-                        name
-                        value {
-                          name
-                        }
-                      }
-                    }
-                    userErrors {
-                      field
-                      message
-                    }
-                  }
-                }
-              `,
-              variables: {
-                productId: productId,
-                variants: [variantInput],
-              },
-            },
-          });
-
-          const result = response.body?.data?.productVariantsBulkCreate;
-
-          if (result?.userErrors?.length > 0) {
-            console.log(`⚠️ Variant ${i + 1} error:`, result.userErrors[0]?.message);
-          } else {
-            createdCount++;
-            console.log(`✅ Created variant ${i + 1}: ${result?.productVariants?.[0]?.title}`);
-          }
-
-          if (i < variants.length - 1) {
-            console.log("⏱️ Waiting 2 seconds to avoid rate limiting...");
-            await this.delay(2000);
-          }
-        } catch (variantError) {
-          console.log(`⚠️ Variant ${i + 1} failed:`, variantError.message);
+        if (result?.userErrors?.length > 0) {
+          console.log(`⚠️ Variant ${i + 1} error:`, result.userErrors[0]?.message);
+        } else if (result?.productVariant) {
+          createdCount++;
+          console.log(`✅ Created variant ${i + 1}: ${result.productVariant.title || result.productVariant.option1 || "Default"} - Price: ${result.productVariant.price}`);
         }
-      }
 
-      console.log(`✅ Created ${createdCount} out of ${variants.length} variants`);
-    } catch (error) {
-      console.log("⚠️ Variant creation error:", error.message);
-      await this.updateFirstVariantPrice(client, productId, variants[0]);
+        // Wait between variants to avoid rate limiting
+        if (i < variants.length - 1) {
+          console.log("⏱️ Waiting 2 seconds to avoid rate limiting...");
+          await this.delay(2000);
+        }
+        
+      } catch (variantError) {
+        console.log(`⚠️ Variant ${i + 1} failed:`, variantError.message);
+      }
     }
+    
+    console.log(`✅ Created ${createdCount} out of ${variants.length} variants`);
   }
 
   async updateFirstVariantPrice(client, productId, variantData) {
@@ -404,7 +336,7 @@ class ProductImporter {
   }
 
   async updateDefaultVariant(client, variantId, variantData) {
-    console.log("🔄 Updating variant using productVariantsBulkUpdate:", variantId, "with price:", variantData.price);
+    console.log("🔄 Updating variant price:", variantId, "with price:", variantData.price);
 
     try {
       const variantResponse = await client.query({
@@ -429,14 +361,12 @@ class ProductImporter {
         throw new Error("Could not get product ID for variant");
       }
 
-      console.log("🔄 Using productVariantsBulkUpdate with productId:", productId);
-
       const response = await client.query({
         data: {
           query: `
-            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-                productVariants {
+            mutation productVariantUpdate($input: ProductVariantInput!) {
+              productVariantUpdate(input: $input) {
+                productVariant {
                   id
                   price
                   compareAtPrice
@@ -449,23 +379,22 @@ class ProductImporter {
             }
           `,
           variables: {
-            productId: productId,
-            variants: [{
+            input: {
               id: variantId,
               price: variantData.price,
               compareAtPrice: variantData.compare_at_price || null,
-            }],
+            },
           },
         },
       });
 
-      const result = response.body?.data?.productVariantsBulkUpdate || response.data?.productVariantsBulkUpdate;
+      const result = response.body?.data?.productVariantUpdate || response.data?.productVariantUpdate;
 
       if (result?.userErrors?.length > 0) {
-        console.error("🔄 Variant bulk update errors:", result.userErrors);
+        console.error("🔄 Variant update errors:", result.userErrors);
         throw new Error("Variant update failed: " + result.userErrors.map(e => e.message).join(", "));
       } else {
-        console.log("✅ Variant updated successfully, new price:", result?.productVariants?.[0]?.price);
+        console.log("✅ Variant updated successfully, new price:", result?.productVariant?.price);
       }
     } catch (error) {
       console.error("❌ Variant update failed:", error.message);
