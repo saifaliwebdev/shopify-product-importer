@@ -255,31 +255,43 @@ class ProductImporter {
    */
   async createProductVariants(client, productId, variants, options) {
     console.log("📦 Creating", variants.length, "variants for product:", productId);
+    console.log("📦 Product options:", JSON.stringify(options, null, 2));
 
     // First create options if they don't exist
     if (options && options.length > 0) {
       console.log("⚙️ Setting up product options...");
-      await client.query({
-        data: {
-          query: `
-            mutation productOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
-              productOptionsCreate(productId: $productId, options: $options) {
-                userErrors {
-                  field
-                  message
+      try {
+        const optionsResponse = await client.query({
+          data: {
+            query: `
+              mutation productOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
+                productOptionsCreate(productId: $productId, options: $options) {
+                  userErrors {
+                    field
+                    message
+                  }
                 }
               }
-            }
-          `,
-          variables: {
-            productId,
-            options: options.map(opt => ({
-              name: opt.name,
-              values: opt.values.map(v => ({ name: v })),
-            })),
+            `,
+            variables: {
+              productId,
+              options: options.map(opt => ({
+                name: opt.name,
+                values: opt.values.map(v => ({ name: v })),
+              })),
+            },
           },
-        },
-      });
+        });
+
+        const optionsResult = optionsResponse.body?.data?.productOptionsCreate;
+        if (optionsResult?.userErrors?.length > 0) {
+          console.error("❌ Options creation errors:", optionsResult.userErrors);
+        } else {
+          console.log("✅ Options created successfully");
+        }
+      } catch (optionsError) {
+        console.error("❌ Options creation failed:", optionsError.message);
+      }
     }
 
     // Prepare variants for bulk create
