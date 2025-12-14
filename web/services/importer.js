@@ -150,7 +150,6 @@ class ProductImporter {
 
       try {
         console.log("📦 Product creation response received");
-        // Log key parts separately to avoid JSON stringify issues
         console.log("📦 Response body exists:", !!createResponse.body);
         console.log("📦 Response data exists:", !!createResponse.body?.data);
         console.log("📦 ProductCreate exists:", !!createResponse.body?.data?.productCreate);
@@ -195,9 +194,9 @@ class ProductImporter {
             console.error("❌ No default variant found for single variant product");
           }
         } else if (variants.length > 1 || productData.options?.length > 0) {
-          // Multiple variants - create them using bulk create
-          console.log("📦 Multiple variants product - creating variants");
-          await this.createProductVariants(client, productId, variants, productData.options || []);
+          // Multiple variants - create them one by one
+          console.log("📦 Multiple variants product - creating variants one by one");
+          await this.createProductVariantsOneByOne(client, productId, variants, productData.options || []);
         } else {
           console.log("⏭️ Unhandled variant scenario");
         }
@@ -290,10 +289,10 @@ class ProductImporter {
   }
 
   /**
-   * Create product variants - First add options, then create variants
+   * Create product variants one by one to avoid rate limiting
    */
-  async createProductVariants(client, productId, variants, options) {
-    console.log("📦 Creating", variants.length, "variants for product:", productId);
+  async createProductVariantsOneByOne(client, productId, variants, options) {
+    console.log("📦 Creating", variants.length, "variants one by one");
 
     try {
       // Step 1: Add product options first (required before creating variants)
@@ -340,84 +339,93 @@ class ProductImporter {
         }
       }
 
-      // Step 2: Create variants with their option values
-      console.log("🔄 Creating variants...");
+      // Step 2: Create variants one by one with delays
+      console.log("🔄 Creating variants one by one...");
       
-      const bulkVariants = variants.map(variant => {
-        const variantInput = {
-          price: variant.price,
-          compareAtPrice: variant.compare_at_price || null,
-          sku: variant.sku || "",
-          optionValues: [],
-        };
+      let createdCount = 0;
+      for (let i = 0; i < variants.length; i++) {
+        const variant = variants[i];
+        
+        try {
+          const variantInput = {
+            price: variant.price,
+            compareAtPrice: variant.compare_at_price || null,
+            sku: variant.sku || "",
+            optionValues: [],
+          };
 
-        // Map option values
-        if (variant.option1) {
-          variantInput.optionValues.push({
-            name: variant.option1,
-            optionName: options?.[0]?.name || "Color"
-          });
-        }
-        if (variant.option2) {
-          variantInput.optionValues.push({
-            name: variant.option2,
-            optionName: options?.[1]?.name || "Size"
-          });
-        }
-        if (variant.option3) {
-          variantInput.optionValues.push({
-            name: variant.option3,
-            optionName: options?.[2]?.name || "Material"
-          });
-        }
+          // Map option values
+          if (variant.option1) {
+            variantInput.optionValues.push({
+              name: variant.option1,
+              optionName: options?.[0]?.name || "Size"
+            });
+          }
+          if (variant.option2) {
+            variantInput.optionValues.push({
+              name: variant.option2,
+              optionName: options?.[1]?.name || "Color"
+            });
+          }
+          if (variant.option3) {
+            variantInput.optionValues.push({
+              name: variant.option3,
+              optionName: options?.[2]?.name || "Material"
+            });
+          }
 
-        return variantInput;
-      });
+          console.log(`📝 Creating variant ${i + 1}/${variants.length}:`, variant.option1 || "Default");
 
-      // Get location ID for inventory
-      const locationId = await this.getLocationId(client);
-      console.log("📍 Using location:", locationId);
-
-      const response = await client.query({
-        data: {
-          query: `
-            mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-              productVariantsBulkCreate(productId: $productId, variants: $variants) {
-                productVariants {
-                  id
-                  title
-                  price
-                  optionValues {
-                    name
-                    value {
-                      name
+          const response = await client.query({
+            data: {
+              query: `
+                mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+                  productVariantsBulkCreate(productId: $productId, variants: $variants) {
+                    productVariants {
+                      id
+                      title
+                      price
+                      optionValues {
+                        name
+                        value {
+                          name
+                        }
+                      }
+                    }
+                    userErrors {
+                      field
+                      message
                     }
                   }
                 }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-          `,
-          variables: {
-            productId: productId,
-            variants: bulkVariants,
-          },
-        },
-      });
+              `,
+              variables: {
+                productId: productId,
+                variants: [variantInput],
+              },
+            },
+          });
 
-      const result = response.body?.data?.productVariantsBulkCreate;
+          const result = response.body?.data?.productVariantsBulkCreate;
 
-      if (result?.userErrors?.length > 0) {
-        console.log("⚠️ Variant errors:", result.userErrors.map(e => e.message).join(", "));
-        // Fallback to updating first variant with price at least
-        await this.updateFirstVariantPrice(client, productId, variants[0]);
-      } else {
-        const createdCount = result?.productVariants?.length || 0;
-        console.log("✅ Created", createdCount, "variants");
+          if (result?.userErrors?.length > 0) {
+            console.log(`⚠️ Variant ${i + 1} error:`, result.userErrors[0]?.message);
+          } else {
+            createdCount++;
+            console.log(`✅ Created variant ${i + 1}: ${result?.productVariants?.[0]?.title}`);
+          }
+
+          // Rate limiting - wait between requests to avoid "router only supports one blocker"
+          if (i < variants.length - 1) {
+            console.log("⏱️ Waiting 2 seconds to avoid rate limiting...");
+            await this.delay(2000);
+          }
+        } catch (variantError) {
+          console.log(`⚠️ Variant ${i + 1} failed:`, variantError.message);
+        }
       }
+
+      console.log(`✅ Created ${createdCount} out of ${variants.length} variants`);
     } catch (error) {
       console.log("⚠️ Variant creation error:", error.message);
       // Update first variant price as fallback
@@ -426,7 +434,7 @@ class ProductImporter {
   }
 
   /**
-   * Fallback: Update first variant's price
+   * Update first variant's price
    */
   async updateFirstVariantPrice(client, productId, variantData) {
     try {
@@ -434,7 +442,7 @@ class ProductImporter {
       
       const productResponse = await client.query({
         data: {
-          query: `query { product(id: "${productId}") { variants(first: 1) { edges { node { id } } } } }`,
+          query: `query { product(id: "${productId}") { variants(first: 1) { edges { node { id } } } }`,
         },
       });
       
@@ -448,81 +456,12 @@ class ProductImporter {
   }
 
   /**
-   * Create variants for product (legacy method)
-   */
-  async createVariants(client, productId, variants, options) {
-    // First, set up options
-    if (options && options.length > 0) {
-      await client.query({
-        data: {
-          query: `
-            mutation productOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
-              productOptionsCreate(productId: $productId, options: $options) {
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-          `,
-          variables: {
-            productId,
-            options: options.map(opt => ({
-              name: opt.name,
-              values: opt.values.map(v => ({ name: v })),
-            })),
-          },
-        },
-      });
-    }
-
-    // Create variants
-    for (const variant of variants) {
-      await client.query({
-        data: {
-          query: `
-            mutation productVariantCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-              productVariantsBulkCreate(productId: $productId, variants: $variants) {
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-          `,
-          variables: {
-            productId,
-            variants: [{
-              price: variant.price,
-              compareAtPrice: variant.compare_at_price,
-              sku: variant.sku,
-              weight: variant.weight,
-              weightUnit: variant.weight_unit?.toUpperCase() || "KILOGRAMS",
-              optionValues: [
-                variant.option1 && { name: variant.option1, optionName: options?.[0]?.name },
-                variant.option2 && { name: variant.option2, optionName: options?.[1]?.name },
-                variant.option3 && { name: variant.option3, optionName: options?.[2]?.name },
-              ].filter(Boolean),
-            }],
-          },
-        },
-      });
-    }
-  }
-
-  /**
    * Update default variant price using REST API (more reliable)
    */
   async updateDefaultVariant(client, variantId, variantData) {
     console.log("🔄 Updating variant:", variantId, "with price:", variantData.price);
 
-    // Extract numeric variant ID from GID
-    // variantId format: gid://shopify/ProductVariant/12345
-    const numericVariantId = variantId.split('/').pop();
-    console.log("🔄 Numeric variant ID:", numericVariantId);
-
     try {
-      // Use REST API which is more reliable for variant updates
       const response = await client.query({
         data: {
           query: `
@@ -554,7 +493,6 @@ class ProductImporter {
 
       if (result?.userErrors?.length > 0) {
         console.error("🔄 Variant update errors:", result.userErrors);
-        // Try alternative approach if first fails
         console.log("🔄 Trying alternative update method...");
         await this.updateVariantViaProductUpdate(client, variantId, variantData);
       } else {
@@ -562,7 +500,6 @@ class ProductImporter {
       }
     } catch (error) {
       console.error("❌ Variant update failed:", error.message);
-      // Try the alternative method
       await this.updateVariantViaProductUpdate(client, variantId, variantData);
     }
   }
@@ -574,7 +511,6 @@ class ProductImporter {
     console.log("🔄 Alternative: Updating via product variants bulk update...");
     
     try {
-      // Get product ID first
       const variantResponse = await client.query({
         data: {
           query: `
@@ -597,7 +533,6 @@ class ProductImporter {
         return;
       }
 
-      // Try bulk update
       const response = await client.query({
         data: {
           query: `
@@ -625,128 +560,4 @@ class ProductImporter {
         },
       });
 
-      const result = response.body?.data?.productVariantsBulkUpdate || response.data?.productVariantsBulkUpdate;
-      
-      if (result?.userErrors?.length > 0) {
-        console.error("❌ Bulk update also failed:", result.userErrors);
-      } else {
-        console.log("✅ Variant updated via bulk update, price:", result?.productVariants?.[0]?.price);
-      }
-    } catch (err) {
-      console.error("❌ Alternative update also failed:", err.message);
-    }
-  }
-
-  /**
-   * Add images to product
-   */
-  async addProductImages(client, productId, images) {
-    const media = images.map((img, index) => ({
-      originalSource: img.src,
-      alt: img.alt || "",
-      mediaContentType: "IMAGE",
-    }));
-
-    await client.query({
-      data: {
-        query: `
-          mutation productCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
-            productCreateMedia(productId: $productId, media: $media) {
-              media {
-                ... on MediaImage {
-                  id
-                }
-              }
-              mediaUserErrors {
-                field
-                message
-              }
-            }
-          }
-        `,
-        variables: { productId, media },
-      },
-    });
-  }
-
-  /**
-   * Add product to collection
-   */
-  async addToCollection(client, productId, collectionId) {
-    console.log("📁 Adding product to collection:", collectionId);
-    
-    try {
-      const response = await client.query({
-        data: {
-          query: `
-            mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
-              collectionAddProducts(id: $id, productIds: $productIds) {
-                collection {
-                  id
-                  title
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }
-          `,
-          variables: {
-            id: collectionId,
-            productIds: [productId],
-          },
-        },
-      });
-
-      const result = response.body?.data?.collectionAddProducts || response.data?.collectionAddProducts;
-      
-      if (result?.userErrors?.length > 0) {
-        console.error("❌ Collection add error:", result.userErrors);
-      } else {
-        console.log("✅ Product added to collection:", result?.collection?.title || collectionId);
-      }
-    } catch (error) {
-      console.error("❌ Failed to add to collection:", error.message);
-      // Don't throw - collection add is optional
-    }
-  }
-
-  /**
-   * Bulk import products
-   */
-  async bulkImport(session, products, options = {}) {
-    const results = {
-      total: products.length,
-      success: 0,
-      failed: 0,
-      errors: [],
-    };
-
-    for (const product of products) {
-      const result = await this.importProduct(session, product, options);
-      
-      if (result.success) {
-        results.success++;
-      } else {
-        results.failed++;
-        results.errors.push({
-          title: product.title,
-          url: product.source_url,
-          error: result.error,
-        });
-      }
-
-      // Rate limiting - Shopify has API limits
-      await this.delay(500);
-    }
-
-    return results;
-  }
-
-  delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-}
-
-export default new ProductImporter();
+      const result = response.body?.data?.productVariantsBulkUpdate || response.data?.productVariants
