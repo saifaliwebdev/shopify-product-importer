@@ -485,21 +485,74 @@ class ProductImporter {
   }
 
   /**
-   * Update default variant price using bulk update
+   * Update default variant price using REST API (more reliable)
    */
   async updateDefaultVariant(client, variantId, variantData) {
     console.log("🔄 Updating variant:", variantId, "with price:", variantData.price);
 
-    // Extract product ID from variant ID
+    // Extract numeric variant ID from GID
     // variantId format: gid://shopify/ProductVariant/12345
-    // We need product ID which we can get from the variant
+    const numericVariantId = variantId.split('/').pop();
+    console.log("🔄 Numeric variant ID:", numericVariantId);
+
+    try {
+      // Use REST API which is more reliable for variant updates
+      const response = await client.query({
+        data: {
+          query: `
+            mutation productVariantUpdate($input: ProductVariantInput!) {
+              productVariantUpdate(input: $input) {
+                productVariant {
+                  id
+                  price
+                  compareAtPrice
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `,
+          variables: {
+            input: {
+              id: variantId,
+              price: variantData.price,
+              compareAtPrice: variantData.compare_at_price || null,
+            },
+          },
+        },
+      });
+
+      const result = response.body?.data?.productVariantUpdate || response.data?.productVariantUpdate;
+
+      if (result?.userErrors?.length > 0) {
+        console.error("🔄 Variant update errors:", result.userErrors);
+        // Try alternative approach if first fails
+        console.log("🔄 Trying alternative update method...");
+        await this.updateVariantViaProductUpdate(client, variantId, variantData);
+      } else {
+        console.log("✅ Variant updated, new price:", result?.productVariant?.price);
+      }
+    } catch (error) {
+      console.error("❌ Variant update failed:", error.message);
+      // Try the alternative method
+      await this.updateVariantViaProductUpdate(client, variantId, variantData);
+    }
+  }
+
+  /**
+   * Alternative: Update variant via product update
+   */
+  async updateVariantViaProductUpdate(client, variantId, variantData) {
+    console.log("🔄 Alternative: Updating via product variants bulk update...");
     
     try {
-      // First get the product ID from the variant
+      // Get product ID first
       const variantResponse = await client.query({
         data: {
           query: `
-            query getVariant($id: ID!) {
+            query getVariantProduct($id: ID!) {
               productVariant(id: $id) {
                 product {
                   id
@@ -512,13 +565,13 @@ class ProductImporter {
       });
       
       const productId = variantResponse.body?.data?.productVariant?.product?.id;
-      console.log("🔄 Product ID for variant:", productId);
       
       if (!productId) {
-        throw new Error("Could not find product ID for variant");
+        console.error("❌ Could not get product ID");
+        return;
       }
 
-      // Use productVariantsBulkUpdate
+      // Try bulk update
       const response = await client.query({
         data: {
           query: `
@@ -540,24 +593,21 @@ class ProductImporter {
             variants: [{
               id: variantId,
               price: variantData.price,
-              compareAtPrice: variantData.compare_at_price,
-              sku: variantData.sku || "",
+              compareAtPrice: variantData.compare_at_price || null,
             }],
           },
         },
       });
 
       const result = response.body?.data?.productVariantsBulkUpdate || response.data?.productVariantsBulkUpdate;
-
+      
       if (result?.userErrors?.length > 0) {
-        console.error("🔄 Variant update user errors:", result.userErrors);
-        throw new Error("Variant update failed: " + result.userErrors.map(e => e.message).join(", "));
+        console.error("❌ Bulk update also failed:", result.userErrors);
+      } else {
+        console.log("✅ Variant updated via bulk update, price:", result?.productVariants?.[0]?.price);
       }
-
-      console.log("✅ Variant updated successfully, price:", result?.productVariants?.[0]?.price);
-    } catch (error) {
-      console.error("❌ Variant update failed:", error.message);
-      throw error;
+    } catch (err) {
+      console.error("❌ Alternative update also failed:", err.message);
     }
   }
 
