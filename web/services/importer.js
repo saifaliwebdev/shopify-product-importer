@@ -485,50 +485,80 @@ class ProductImporter {
   }
 
   /**
-   * Update default variant price
+   * Update default variant price using bulk update
    */
   async updateDefaultVariant(client, variantId, variantData) {
-    console.log("🔄 Updating variant:", variantId, "with data:", variantData);
+    console.log("🔄 Updating variant:", variantId, "with price:", variantData.price);
 
-    const response = await client.query({
-      data: {
-        query: `
-          mutation productVariantUpdate($input: ProductVariantInput!) {
-            productVariantUpdate(input: $input) {
-              productVariant {
-                id
-                price
-              }
-              userErrors {
-                field
-                message
+    // Extract product ID from variant ID
+    // variantId format: gid://shopify/ProductVariant/12345
+    // We need product ID which we can get from the variant
+    
+    try {
+      // First get the product ID from the variant
+      const variantResponse = await client.query({
+        data: {
+          query: `
+            query getVariant($id: ID!) {
+              productVariant(id: $id) {
+                product {
+                  id
+                }
               }
             }
-          }
-        `,
-        variables: {
-          input: {
-            id: variantId, // Use the variantId parameter
-            price: variantData.price,
-            compareAtPrice: variantData.compare_at_price,
-            sku: variantData.sku,
-            weight: variantData.weight,
-            weightUnit: variantData.weight_unit?.toUpperCase() || "KILOGRAMS",
+          `,
+          variables: { id: variantId },
+        },
+      });
+      
+      const productId = variantResponse.body?.data?.productVariant?.product?.id;
+      console.log("🔄 Product ID for variant:", productId);
+      
+      if (!productId) {
+        throw new Error("Could not find product ID for variant");
+      }
+
+      // Use productVariantsBulkUpdate
+      const response = await client.query({
+        data: {
+          query: `
+            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                productVariants {
+                  id
+                  price
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `,
+          variables: {
+            productId: productId,
+            variants: [{
+              id: variantId,
+              price: variantData.price,
+              compareAtPrice: variantData.compare_at_price,
+              sku: variantData.sku || "",
+            }],
           },
         },
-      },
-    });
+      });
 
-    console.log("🔄 Variant update response:", JSON.stringify(response, null, 2));
+      const result = response.body?.data?.productVariantsBulkUpdate || response.data?.productVariantsBulkUpdate;
 
-    const result = response.body?.data?.productVariantUpdate || response.data?.productVariantUpdate;
+      if (result?.userErrors?.length > 0) {
+        console.error("🔄 Variant update user errors:", result.userErrors);
+        throw new Error("Variant update failed: " + result.userErrors.map(e => e.message).join(", "));
+      }
 
-    if (result.userErrors?.length > 0) {
-      console.error("🔄 Variant update user errors:", result.userErrors);
-      throw new Error("Variant update failed: " + result.userErrors.map(e => e.message).join(", "));
+      console.log("✅ Variant updated successfully, price:", result?.productVariants?.[0]?.price);
+    } catch (error) {
+      console.error("❌ Variant update failed:", error.message);
+      throw error;
     }
-
-    console.log("✅ Variant updated successfully");
   }
 
   /**
