@@ -298,66 +298,95 @@ class ProductImporter {
   }
 
   /**
-   * Create product variants using bulk create
+   * Create product variants - First add options, then create variants
    */
   async createProductVariants(client, productId, variants, options) {
     console.log("📦 Creating", variants.length, "variants for product:", productId);
-    console.log("📦 Product options:", JSON.stringify(options, null, 2));
-
-    // Get dynamic location ID
-    const locationId = await this.getLocationId(client);
-    console.log("📍 Using location ID for variants:", locationId);
-
-    // Use productVariantsBulkCreate for newer Shopify API
-    console.log("🔄 Using bulk variant creation...");
 
     try {
-      // Build variants array for bulk create
+      // Step 1: Add product options first (required before creating variants)
+      if (options && options.length > 0) {
+        console.log("🔧 Adding product options first...");
+        
+        const optionsToCreate = options.map(opt => ({
+          name: opt.name || "Option",
+          values: opt.values?.map(v => ({ name: v })) || []
+        }));
+
+        const optionsResponse = await client.query({
+          data: {
+            query: `
+              mutation productOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
+                productOptionsCreate(productId: $productId, options: $options) {
+                  product {
+                    id
+                    options {
+                      id
+                      name
+                      values
+                    }
+                  }
+                  userErrors {
+                    field
+                    message
+                  }
+                }
+              }
+            `,
+            variables: {
+              productId: productId,
+              options: optionsToCreate,
+            },
+          },
+        });
+
+        const optResult = optionsResponse.body?.data?.productOptionsCreate;
+        if (optResult?.userErrors?.length > 0) {
+          console.log("⚠️ Options create errors:", optResult.userErrors[0]?.message);
+        } else {
+          console.log("✅ Product options added");
+        }
+      }
+
+      // Step 2: Create variants with their option values
+      console.log("🔄 Creating variants...");
+      
       const bulkVariants = variants.map(variant => {
         const variantInput = {
           price: variant.price,
-          compareAtPrice: variant.compare_at_price,
+          compareAtPrice: variant.compare_at_price || null,
           sku: variant.sku || "",
           optionValues: [],
         };
 
-        // Add option values
-        if (variant.option1 && options[0]) {
+        // Map option values
+        if (variant.option1) {
           variantInput.optionValues.push({
             name: variant.option1,
-            optionName: options[0].name || "Option 1"
+            optionName: options?.[0]?.name || "Color"
           });
         }
-        if (variant.option2 && options[1]) {
+        if (variant.option2) {
           variantInput.optionValues.push({
             name: variant.option2,
-            optionName: options[1].name || "Option 2"
+            optionName: options?.[1]?.name || "Size"
           });
         }
-        if (variant.option3 && options[2]) {
+        if (variant.option3) {
           variantInput.optionValues.push({
             name: variant.option3,
-            optionName: options[2].name || "Option 3"
+            optionName: options?.[2]?.name || "Material"
           });
         }
 
-        // If no options defined, add simple option values
-        if (variantInput.optionValues.length === 0 && variant.option1) {
-          variantInput.optionValues.push({
-            name: variant.option1,
-            optionName: "Title"
-          });
-        }
-
-        console.log("📝 Variant input:", variant.option1, "Price:", variant.price);
         return variantInput;
       });
 
       const response = await client.query({
         data: {
           query: `
-            mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-              productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!, $strategy: ProductVariantsBulkCreateStrategy) {
+              productVariantsBulkCreate(productId: $productId, variants: $variants, strategy: $strategy) {
                 productVariants {
                   id
                   title
@@ -373,51 +402,47 @@ class ProductImporter {
           variables: {
             productId: productId,
             variants: bulkVariants,
+            strategy: "REMOVE_STANDALONE_VARIANT",
           },
         },
       });
 
-      const result = response.body?.data?.productVariantsBulkCreate || response.data?.productVariantsBulkCreate;
+      const result = response.body?.data?.productVariantsBulkCreate;
 
       if (result?.userErrors?.length > 0) {
-        console.error("❌ Bulk variant create errors:", result.userErrors);
+        console.log("⚠️ Variant errors:", result.userErrors.map(e => e.message).join(", "));
+        // Fallback to updating first variant with price at least
+        await this.updateFirstVariantPrice(client, productId, variants[0]);
       } else {
         const createdCount = result?.productVariants?.length || 0;
-        console.log("✅ Created", createdCount, "variants via bulk create");
+        console.log("✅ Created", createdCount, "variants");
       }
-    } catch (bulkError) {
-      console.error("❌ Bulk variant creation failed:", bulkError.message);
-      console.log("🔄 Falling back to REST API for variants...");
+    } catch (error) {
+      console.log("⚠️ Variant creation error:", error.message);
+      // Update first variant price as fallback
+      await this.updateFirstVariantPrice(client, productId, variants[0]);
+    }
+  }
+
+  /**
+   * Fallback: Update first variant's price
+   */
+  async updateFirstVariantPrice(client, productId, variantData) {
+    try {
+      console.log("🔄 Updating first variant price as fallback...");
       
-      // Fallback: Try updating default variant at least
-      try {
-        // Get the product with its default variant
-        const productResponse = await client.query({
-          data: {
-            query: `
-              query getProduct($id: ID!) {
-                product(id: $id) {
-                  variants(first: 1) {
-                    edges {
-                      node {
-                        id
-                      }
-                    }
-                  }
-                }
-              }
-            `,
-            variables: { id: productId },
-          },
-        });
-        
-        const defaultVariantId = productResponse.body?.data?.product?.variants?.edges?.[0]?.node?.id;
-        if (defaultVariantId && variants[0]) {
-          await this.updateDefaultVariant(client, defaultVariantId, variants[0]);
-        }
-      } catch (fallbackError) {
-        console.error("❌ Fallback also failed:", fallbackError.message);
+      const productResponse = await client.query({
+        data: {
+          query: `query { product(id: "${productId}") { variants(first: 1) { edges { node { id } } } } }`,
+        },
+      });
+      
+      const variantId = productResponse.body?.data?.product?.variants?.edges?.[0]?.node?.id;
+      if (variantId && variantData) {
+        await this.updateDefaultVariant(client, variantId, variantData);
       }
+    } catch (err) {
+      console.log("⚠️ Fallback price update failed:", err.message);
     }
   }
 
