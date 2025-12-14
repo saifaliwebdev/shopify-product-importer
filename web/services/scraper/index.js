@@ -16,7 +16,7 @@ class ProductScraper {
   /**
    * Detect platform from URL
    */
-  detectPlatform(url) {
+  async detectPlatform(url) {
     const urlLower = url.toLowerCase();
 
     console.log("🔍 Detecting platform for:", urlLower);
@@ -29,7 +29,7 @@ class ProductScraper {
       console.log("📦 Detected: Amazon");
       return "amazon";
     }
-    if (urlLower.includes("myshopify.com") || this.isShopifyStore(url)) {
+    if (urlLower.includes("myshopify.com") || await this.isShopifyStore(url)) {
       console.log("📦 Detected: Shopify");
       return "shopify";
     }
