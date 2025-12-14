@@ -1,9 +1,25 @@
-// Format price
-export function formatPrice(amount, currency = "USD") {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-  }).format(amount);
+// Format price - show without currency symbol since source stores have different currencies
+export function formatPrice(amount, currency = null) {
+  // If no currency specified, just format the number
+  if (!currency) {
+    return new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  }
+  
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).format(amount);
+  } catch (e) {
+    // Fallback for invalid currency codes
+    return new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  }
 }
 
 // Format date
