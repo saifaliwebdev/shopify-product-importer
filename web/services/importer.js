@@ -134,47 +134,35 @@ class ProductImporter {
 
       console.log("✅ Product created successfully:", productId);
 
-      // 4. Update default variant price if needed
-      console.log("🔍 Checking variant update condition:");
-      console.log("   - variants.length:", variants.length);
-      console.log("   - variants[0]?.price:", variants[0]?.price);
-      console.log("   - variants[0]?.price !== '0.00':", variants[0]?.price !== "0.00");
-
+      // 4. Handle variants
       try {
-        console.log("🎯 About to check variant update condition...");
-        if (variants.length > 0 && variants[0]?.price && variants[0]?.price !== "0.00") {
-        console.log("✅ ENTERED variant update block");
-        try {
-          console.log("� Created product variants structure:", createdProduct.variants);
+        console.log("🔍 Handling variants for product...");
+        console.log("   - Total variants:", variants.length);
+        console.log("   - Product has options:", productData.options?.length > 0);
+
+        if (variants.length === 0) {
+          console.log("⏭️ No variants to process");
+        } else if (variants.length === 1 && !productData.options?.length) {
+          // Single variant product - update default variant
+          console.log("📝 Single variant product - updating default variant");
           const defaultVariantId = createdProduct.variants?.edges?.[0]?.node?.id;
-          console.log("�📝 Default variant ID:", defaultVariantId);
 
-          if (!defaultVariantId) {
-            console.error("❌ No default variant ID found!");
-            throw new Error("No default variant ID found in created product");
+          if (defaultVariantId) {
+            console.log("📝 Updating default variant price to:", variants[0].price);
+            await this.updateDefaultVariant(client, defaultVariantId, variants[0]);
+          } else {
+            console.error("❌ No default variant found for single variant product");
           }
-
-          console.log("📝 Updating default variant price to:", variants[0].price);
-
-          // Check if price is too high (Shopify has limits)
-          const priceNum = parseFloat(variants[0].price);
-          if (priceNum > 10000) { // Shopify typical max price
-            console.log("⚠️ Price too high, converting PKR to USD (assuming 1 USD = 278 PKR)");
-            const usdPrice = (priceNum / 278).toFixed(2);
-            console.log("💱 Converted price:", priceNum, "PKR →", usdPrice, "USD");
-            variants[0].price = usdPrice;
-          }
-
-          await this.updateDefaultVariant(client, defaultVariantId, variants[0]);
-        } catch (variantError) {
-          console.error("❌ Variant update failed:", variantError.message);
-          // Don't throw here - product was created successfully, just log the variant update failure
-        }
+        } else if (variants.length > 1 || productData.options?.length > 0) {
+          // Multiple variants - create them using bulk create
+          console.log("📦 Multiple variants product - creating variants");
+          await this.createProductVariants(client, productId, variants, productData.options || []);
         } else {
-          console.log("⏭️ Skipping variant update - condition not met");
+          console.log("⏭️ Unhandled variant scenario");
         }
-      } catch (variantSectionError) {
-        console.error("❌ Variant section error:", variantSectionError.message);
+      } catch (variantError) {
+        console.error("❌ Variant processing failed:", variantError.message);
+        // Don't throw here - product was created successfully
       }
 
       // 5. Add images
@@ -263,7 +251,92 @@ class ProductImporter {
   }
 
   /**
-   * Create variants for product
+   * Create product variants using bulk create
+   */
+  async createProductVariants(client, productId, variants, options) {
+    console.log("📦 Creating", variants.length, "variants for product:", productId);
+
+    // First create options if they don't exist
+    if (options && options.length > 0) {
+      console.log("⚙️ Setting up product options...");
+      await client.query({
+        data: {
+          query: `
+            mutation productOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
+              productOptionsCreate(productId: $productId, options: $options) {
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `,
+          variables: {
+            productId,
+            options: options.map(opt => ({
+              name: opt.name,
+              values: opt.values.map(v => ({ name: v })),
+            })),
+          },
+        },
+      });
+    }
+
+    // Prepare variants for bulk create
+    const variantInputs = variants.map(variant => ({
+      price: variant.price,
+      compareAtPrice: variant.compare_at_price,
+      sku: variant.sku,
+      weight: variant.weight,
+      weightUnit: variant.weight_unit?.toUpperCase() || "KILOGRAMS",
+      inventoryQuantities: variant.inventory_quantity ? [{
+        availableQuantity: variant.inventory_quantity,
+        locationId: "gid://shopify/Location/1" // Default location
+      }] : [],
+      optionValues: [
+        variant.option1 && { optionName: options?.[0]?.name, name: variant.option1 },
+        variant.option2 && { optionName: options?.[1]?.name, name: variant.option2 },
+        variant.option3 && { optionName: options?.[2]?.name, name: variant.option3 },
+      ].filter(Boolean),
+    }));
+
+    console.log("📦 Variant inputs:", JSON.stringify(variantInputs, null, 2));
+
+    // Create variants in bulk
+    const response = await client.query({
+      data: {
+        query: `
+          mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+            productVariantsBulkCreate(productId: $productId, variants: $variants) {
+              productVariants {
+                id
+                title
+                price
+                sku
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: { productId, variants: variantInputs },
+      },
+    });
+
+    const result = response.body?.data?.productVariantsBulkCreate || response.data?.productVariantsBulkCreate;
+
+    if (result.userErrors?.length > 0) {
+      console.error("❌ Variant bulk create errors:", result.userErrors);
+      throw new Error("Variant creation failed: " + result.userErrors.map(e => e.message).join(", "));
+    }
+
+    console.log("✅ Created variants:", result.productVariants?.length || 0);
+  }
+
+  /**
+   * Create variants for product (legacy method)
    */
   async createVariants(client, productId, variants, options) {
     // First, set up options
