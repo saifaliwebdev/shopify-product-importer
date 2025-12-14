@@ -37,6 +37,13 @@ class ProductImporter {
       console.log("📦 Original variants:", productData.variants);
       console.log("📦 Processed variants:", variants);
 
+      // Check condition immediately
+      console.log("🔍 Checking variant update condition:");
+      console.log("   - variants.length:", variants.length);
+      console.log("   - variants[0]?.price:", variants[0]?.price);
+      console.log("   - variants[0]?.price !== '0.00':", variants[0]?.price !== "0.00");
+      console.log("   - Condition result:", variants.length > 0 && variants[0]?.price && variants[0]?.price !== "0.00");
+
       // 3. Create product in Shopify
       const client = new shopify.api.clients.Graphql({ session });
 
@@ -107,23 +114,36 @@ class ProductImporter {
       // 4. Update default variant price if needed
       console.log("🔍 Checking variant update condition:");
       console.log("   - variants.length:", variants.length);
-      console.log("   - variants[0].price:", variants[0]?.price);
-      console.log("   - variants[0].price !== '0.00':", variants[0]?.price !== "0.00");
+      console.log("   - variants[0]?.price:", variants[0]?.price);
+      console.log("   - variants[0]?.price !== '0.00':", variants[0]?.price !== "0.00");
 
-      if (variants.length > 0 && variants[0].price && variants[0].price !== "0.00") {
-        const defaultVariantId = createdProduct.variants.edges[0].node.id;
-        console.log("📝 Updating default variant price to:", variants[0].price);
+      if (variants.length > 0 && variants[0]?.price && variants[0]?.price !== "0.00") {
+        try {
+          console.log("🔍 Created product variants structure:", createdProduct.variants);
+          const defaultVariantId = createdProduct.variants?.edges?.[0]?.node?.id;
+          console.log("📝 Default variant ID:", defaultVariantId);
 
-        // Check if price is too high (Shopify has limits)
-        const priceNum = parseFloat(variants[0].price);
-        if (priceNum > 10000) { // Shopify typical max price
-          console.log("⚠️ Price too high, converting PKR to USD (assuming 1 USD = 278 PKR)");
-          const usdPrice = (priceNum / 278).toFixed(2);
-          console.log("💱 Converted price:", priceNum, "PKR →", usdPrice, "USD");
-          variants[0].price = usdPrice;
+          if (!defaultVariantId) {
+            console.error("❌ No default variant ID found!");
+            throw new Error("No default variant ID found in created product");
+          }
+
+          console.log("📝 Updating default variant price to:", variants[0].price);
+
+          // Check if price is too high (Shopify has limits)
+          const priceNum = parseFloat(variants[0].price);
+          if (priceNum > 10000) { // Shopify typical max price
+            console.log("⚠️ Price too high, converting PKR to USD (assuming 1 USD = 278 PKR)");
+            const usdPrice = (priceNum / 278).toFixed(2);
+            console.log("💱 Converted price:", priceNum, "PKR →", usdPrice, "USD");
+            variants[0].price = usdPrice;
+          }
+
+          await this.updateDefaultVariant(client, defaultVariantId, variants[0]);
+        } catch (variantError) {
+          console.error("❌ Variant update failed:", variantError.message);
+          // Don't throw here - product was created successfully, just log the variant update failure
         }
-
-        await this.updateDefaultVariant(client, defaultVariantId, variants[0]);
       } else {
         console.log("⏭️ Skipping variant update - condition not met");
       }
