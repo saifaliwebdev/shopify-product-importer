@@ -34,6 +34,9 @@ class ProductImporter {
         priceMarkupType
       );
 
+      console.log("📦 Original variants:", productData.variants);
+      console.log("📦 Processed variants:", variants);
+
       // 3. Create product in Shopify
       const client = new shopify.api.clients.Graphql({ session });
 
