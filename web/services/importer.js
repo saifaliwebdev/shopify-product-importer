@@ -13,7 +13,7 @@ class ProductImporter {
     if (this.locationId) return this.locationId;
     
     try {
-      const response = await client.request({
+      const response = await client.query({
         data: `{
           locations(first: 1) {
             edges {
@@ -51,7 +51,7 @@ class ProductImporter {
     try {
       const client = new shopify.api.clients.Graphql({ session });
       
-      const storeResponse = await client.request({
+      const storeResponse = await client.query({
         data: `{
           shop {
             currencyCode
@@ -101,7 +101,7 @@ class ProductImporter {
 
       console.log("📦 Product input:", JSON.stringify(productInput, null, 2));
 
-      const createResponse = await client.request({
+      const createResponse = await client.query({
         data: {
           query: `
             mutation productCreate($input: ProductInput!) {
@@ -259,7 +259,7 @@ class ProductImporter {
           values: opt.values?.map(v => ({ name: v })) || []
         }));
 
-        const optionsResponse = await client.request({
+        const optionsResponse = await client.query({
           data: {
             query: `
               mutation productOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
@@ -329,7 +329,7 @@ class ProductImporter {
 
           console.log(`📝 Creating variant ${i + 1}/${variants.length}:`, variant.option1 || "Default");
 
-          const response = await client.request({
+          const response = await client.query({
             data: {
               query: `
                 mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -388,7 +388,7 @@ class ProductImporter {
     try {
       console.log("🔄 Updating first variant price as fallback...");
       
-      const productResponse = await client.request({
+      const productResponse = await client.query({
         data: {
           query: `query { product(id: "${productId}") { variants(first: 1) { edges { node { id } } } }`,
         },
@@ -407,7 +407,7 @@ class ProductImporter {
     console.log("🔄 Updating variant using productVariantsBulkUpdate:", variantId, "with price:", variantData.price);
 
     try {
-      const variantResponse = await client.request({
+      const variantResponse = await client.query({
         data: {
           query: `
             query getVariantProduct($id: ID!) {
@@ -431,7 +431,7 @@ class ProductImporter {
 
       console.log("🔄 Using productVariantsBulkUpdate with productId:", productId);
 
-      const response = await client.request({
+      const response = await client.query({
         data: {
           query: `
             mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -480,7 +480,7 @@ class ProductImporter {
       mediaContentType: "IMAGE",
     }));
 
-    await client.request({
+    await client.query({
       data: {
         query: `
           mutation productCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
@@ -506,7 +506,7 @@ class ProductImporter {
     console.log("📁 Adding product to collection:", collectionId);
     
     try {
-      const response = await client.request({
+      const response = await client.query({
         data: {
           query: `
             mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
