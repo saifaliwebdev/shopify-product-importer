@@ -140,8 +140,9 @@ class ProductImporter {
       console.log("   - variants[0]?.price:", variants[0]?.price);
       console.log("   - variants[0]?.price !== '0.00':", variants[0]?.price !== "0.00");
 
-      console.log("🎯 About to check variant update condition...");
-      if (variants.length > 0 && variants[0]?.price && variants[0]?.price !== "0.00") {
+      try {
+        console.log("🎯 About to check variant update condition...");
+        if (variants.length > 0 && variants[0]?.price && variants[0]?.price !== "0.00") {
         console.log("✅ ENTERED variant update block");
         try {
           console.log("� Created product variants structure:", createdProduct.variants);
@@ -169,8 +170,11 @@ class ProductImporter {
           console.error("❌ Variant update failed:", variantError.message);
           // Don't throw here - product was created successfully, just log the variant update failure
         }
-      } else {
-        console.log("⏭️ Skipping variant update - condition not met");
+        } else {
+          console.log("⏭️ Skipping variant update - condition not met");
+        }
+      } catch (variantSectionError) {
+        console.error("❌ Variant section error:", variantSectionError.message);
       }
 
       // 5. Add images
