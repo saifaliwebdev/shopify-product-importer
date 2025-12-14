@@ -6,6 +6,35 @@ import { convertPriceForImport } from "../utils/currency.js";
 class ProductImporter {
   constructor() {
     this.imageHandler = new ImageHandler();
+    this.locationId = null; // Will be fetched dynamically
+  }
+
+  /**
+   * Get the primary location ID for the store
+   */
+  async getLocationId(client) {
+    if (this.locationId) return this.locationId;
+    
+    try {
+      const response = await client.query({
+        data: `{
+          locations(first: 1) {
+            edges {
+              node {
+                id
+              }
+            }
+          }
+        }`,
+      });
+      
+      this.locationId = response.body?.data?.locations?.edges?.[0]?.node?.id;
+      console.log("📍 Location ID:", this.locationId);
+      return this.locationId;
+    } catch (error) {
+      console.error("❌ Failed to get location ID:", error.message);
+      return null;
+    }
   }
 
   /**
@@ -19,11 +48,16 @@ class ProductImporter {
       publishToSalesChannels = false,
       downloadImages = true,
       collectionId = null,
+      inventoryQuantity = 100,
+      titlePrefix = "",
+      titleSuffix = "",
+      replaceVendor = "",
     } = options;
 
     try {
-      // 1. Get store currency
+      // 1. Get store currency and location
       const client = new shopify.api.clients.Graphql({ session });
+      
       const storeResponse = await client.query({
         data: `{
           shop {
@@ -33,6 +67,9 @@ class ProductImporter {
       });
       const storeCurrency = storeResponse.body?.data?.shop?.currencyCode || 'USD';
       console.log("🏪 Store currency:", storeCurrency);
+      
+      // Get location ID for inventory
+      const locationId = await this.getLocationId(client);
 
       // 2. Process images
       let images = productData.images || [];
@@ -64,13 +101,25 @@ class ProductImporter {
 
       console.log("📦 Creating product in Shopify:", productData.title);
 
+      // Set status based on options
+      const productStatus = status === "active" ? "ACTIVE" : "DRAFT";
+      console.log("📦 Product status will be:", productStatus);
+
+      // Apply title prefix/suffix
+      let finalTitle = productData.title;
+      if (titlePrefix) finalTitle = `${titlePrefix} ${finalTitle}`;
+      if (titleSuffix) finalTitle = `${finalTitle} ${titleSuffix}`;
+
+      // Apply vendor replacement
+      const finalVendor = replaceVendor || productData.vendor || "";
+
       const productInput = {
-        title: productData.title,
+        title: finalTitle,
         descriptionHtml: productData.description,
-        vendor: productData.vendor || "",
+        vendor: finalVendor,
         productType: productData.product_type || "",
         tags: productData.tags || [],
-        status: "DRAFT", // Use DRAFT for testing, can be changed to ACTIVE later
+        status: productStatus,
       };
 
       console.log("📦 Product input:", JSON.stringify(productInput, null, 2));
@@ -257,6 +306,10 @@ class ProductImporter {
     console.log("📦 Creating", variants.length, "variants for product:", productId);
     console.log("📦 Product options:", JSON.stringify(options, null, 2));
 
+    // Get dynamic location ID
+    const locationId = await this.getLocationId(client);
+    console.log("📍 Using location ID for variants:", locationId);
+
     // For products with variants, we need to create them using individual variant creates
     // because bulk create conflicts with existing variants
     console.log("🔄 Using individual variant creation to avoid conflicts...");
@@ -265,6 +318,17 @@ class ProductImporter {
     for (const variant of variants) {
       try {
         console.log("📝 Creating variant:", variant.title || `${variant.option1} / ${variant.option2}`);
+        console.log("   - Price:", variant.price);
+        console.log("   - Inventory:", variant.inventory_quantity || 0);
+
+        // Build inventory quantities if we have location ID and quantity
+        const inventoryQuantities = [];
+        if (locationId && variant.inventory_quantity) {
+          inventoryQuantities.push({
+            availableQuantity: parseInt(variant.inventory_quantity) || 0,
+            locationId: locationId
+          });
+        }
 
         const response = await client.query({
           data: {
@@ -290,15 +354,10 @@ class ProductImporter {
                 price: variant.price,
                 compareAtPrice: variant.compare_at_price,
                 sku: variant.sku,
-                weight: variant.weight,
+                weight: variant.weight ? parseFloat(variant.weight) : null,
                 weightUnit: variant.weight_unit?.toUpperCase() || "KILOGRAMS",
-                inventoryQuantities: variant.inventory_quantity ? [{
-                  availableQuantity: variant.inventory_quantity,
-                  locationId: "gid://shopify/Location/1"
-                }] : [],
-                option1: variant.option1,
-                option2: variant.option2,
-                option3: variant.option3,
+                inventoryQuantities: inventoryQuantities,
+                options: [variant.option1, variant.option2, variant.option3].filter(Boolean),
               },
             },
           },
@@ -469,24 +528,43 @@ class ProductImporter {
    * Add product to collection
    */
   async addToCollection(client, productId, collectionId) {
-    await client.query({
-      data: {
-        query: `
-          mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
-            collectionAddProducts(id: $id, productIds: $productIds) {
-              userErrors {
-                field
-                message
+    console.log("📁 Adding product to collection:", collectionId);
+    
+    try {
+      const response = await client.query({
+        data: {
+          query: `
+            mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
+              collectionAddProducts(id: $id, productIds: $productIds) {
+                collection {
+                  id
+                  title
+                }
+                userErrors {
+                  field
+                  message
+                }
               }
             }
-          }
-        `,
-        variables: {
-          id: collectionId,
-          productIds: [productId],
+          `,
+          variables: {
+            id: collectionId,
+            productIds: [productId],
+          },
         },
-      },
-    });
+      });
+
+      const result = response.body?.data?.collectionAddProducts || response.data?.collectionAddProducts;
+      
+      if (result?.userErrors?.length > 0) {
+        console.error("❌ Collection add error:", result.userErrors);
+      } else {
+        console.log("✅ Product added to collection:", result?.collection?.title || collectionId);
+      }
+    } catch (error) {
+      console.error("❌ Failed to add to collection:", error.message);
+      // Don't throw - collection add is optional
+    }
   }
 
   /**
