@@ -310,76 +310,117 @@ class ProductImporter {
     const locationId = await this.getLocationId(client);
     console.log("📍 Using location ID for variants:", locationId);
 
-    // For products with variants, we need to create them using individual variant creates
-    // because bulk create conflicts with existing variants
-    console.log("🔄 Using individual variant creation to avoid conflicts...");
+    // Use productVariantsBulkCreate for newer Shopify API
+    console.log("🔄 Using bulk variant creation...");
 
-    let createdCount = 0;
-    for (const variant of variants) {
-      try {
-        console.log("📝 Creating variant:", variant.title || `${variant.option1} / ${variant.option2}`);
-        console.log("   - Price:", variant.price);
-        console.log("   - Inventory:", variant.inventory_quantity || 0);
+    try {
+      // Build variants array for bulk create
+      const bulkVariants = variants.map(variant => {
+        const variantInput = {
+          price: variant.price,
+          compareAtPrice: variant.compare_at_price,
+          sku: variant.sku || "",
+          optionValues: [],
+        };
 
-        // Build inventory quantities if we have location ID and quantity
-        const inventoryQuantities = [];
-        if (locationId && variant.inventory_quantity) {
-          inventoryQuantities.push({
-            availableQuantity: parseInt(variant.inventory_quantity) || 0,
-            locationId: locationId
+        // Add option values
+        if (variant.option1 && options[0]) {
+          variantInput.optionValues.push({
+            name: variant.option1,
+            optionName: options[0].name || "Option 1"
+          });
+        }
+        if (variant.option2 && options[1]) {
+          variantInput.optionValues.push({
+            name: variant.option2,
+            optionName: options[1].name || "Option 2"
+          });
+        }
+        if (variant.option3 && options[2]) {
+          variantInput.optionValues.push({
+            name: variant.option3,
+            optionName: options[2].name || "Option 3"
           });
         }
 
-        const response = await client.query({
+        // If no options defined, add simple option values
+        if (variantInput.optionValues.length === 0 && variant.option1) {
+          variantInput.optionValues.push({
+            name: variant.option1,
+            optionName: "Title"
+          });
+        }
+
+        console.log("📝 Variant input:", variant.option1, "Price:", variant.price);
+        return variantInput;
+      });
+
+      const response = await client.query({
+        data: {
+          query: `
+            mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkCreate(productId: $productId, variants: $variants) {
+                productVariants {
+                  id
+                  title
+                  price
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `,
+          variables: {
+            productId: productId,
+            variants: bulkVariants,
+          },
+        },
+      });
+
+      const result = response.body?.data?.productVariantsBulkCreate || response.data?.productVariantsBulkCreate;
+
+      if (result?.userErrors?.length > 0) {
+        console.error("❌ Bulk variant create errors:", result.userErrors);
+      } else {
+        const createdCount = result?.productVariants?.length || 0;
+        console.log("✅ Created", createdCount, "variants via bulk create");
+      }
+    } catch (bulkError) {
+      console.error("❌ Bulk variant creation failed:", bulkError.message);
+      console.log("🔄 Falling back to REST API for variants...");
+      
+      // Fallback: Try updating default variant at least
+      try {
+        // Get the product with its default variant
+        const productResponse = await client.query({
           data: {
             query: `
-              mutation productVariantCreate($input: ProductVariantInput!) {
-                productVariantCreate(input: $input) {
-                  productVariant {
-                    id
-                    title
-                    price
-                    sku
-                  }
-                  userErrors {
-                    field
-                    message
+              query getProduct($id: ID!) {
+                product(id: $id) {
+                  variants(first: 1) {
+                    edges {
+                      node {
+                        id
+                      }
+                    }
                   }
                 }
               }
             `,
-            variables: {
-              input: {
-                productId: productId,
-                price: variant.price,
-                compareAtPrice: variant.compare_at_price,
-                sku: variant.sku,
-                weight: variant.weight ? parseFloat(variant.weight) : null,
-                weightUnit: variant.weight_unit?.toUpperCase() || "KILOGRAMS",
-                inventoryQuantities: inventoryQuantities,
-                options: [variant.option1, variant.option2, variant.option3].filter(Boolean),
-              },
-            },
+            variables: { id: productId },
           },
         });
-
-        const result = response.body?.data?.productVariantCreate || response.data?.productVariantCreate;
-
-        if (result.userErrors?.length > 0) {
-          console.error("❌ Variant create error:", result.userErrors[0]?.message);
-        } else {
-          createdCount++;
-          console.log("✅ Variant created:", result.productVariant?.title);
+        
+        const defaultVariantId = productResponse.body?.data?.product?.variants?.edges?.[0]?.node?.id;
+        if (defaultVariantId && variants[0]) {
+          await this.updateDefaultVariant(client, defaultVariantId, variants[0]);
         }
-
-        // Small delay to avoid rate limits
-        await this.delay(100);
-      } catch (variantError) {
-        console.error("❌ Variant creation failed:", variantError.message);
+      } catch (fallbackError) {
+        console.error("❌ Fallback also failed:", fallbackError.message);
       }
     }
-
-    console.log("✅ Created", createdCount, "out of", variants.length, "variants");
   }
 
   /**
