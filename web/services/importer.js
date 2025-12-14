@@ -140,11 +140,13 @@ class ProductImporter {
       console.log("   - variants[0]?.price:", variants[0]?.price);
       console.log("   - variants[0]?.price !== '0.00':", variants[0]?.price !== "0.00");
 
+      console.log("🎯 About to check variant update condition...");
       if (variants.length > 0 && variants[0]?.price && variants[0]?.price !== "0.00") {
+        console.log("✅ ENTERED variant update block");
         try {
-          console.log("🔍 Created product variants structure:", createdProduct.variants);
+          console.log("� Created product variants structure:", createdProduct.variants);
           const defaultVariantId = createdProduct.variants?.edges?.[0]?.node?.id;
-          console.log("📝 Default variant ID:", defaultVariantId);
+          console.log("�📝 Default variant ID:", defaultVariantId);
 
           if (!defaultVariantId) {
             console.error("❌ No default variant ID found!");
