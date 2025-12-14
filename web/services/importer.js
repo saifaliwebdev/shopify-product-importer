@@ -295,20 +295,19 @@ class ProductImporter {
     }
 
     // Prepare variants for bulk create
+    // Note: ProductVariantsBulkInput only accepts price, compareAtPrice, inventoryQuantities, and optionValues
+    // sku, weight, weightUnit must be set separately after creation
     const variantInputs = variants.map(variant => ({
       price: variant.price,
       compareAtPrice: variant.compare_at_price,
-      sku: variant.sku,
-      weight: variant.weight,
-      weightUnit: variant.weight_unit?.toUpperCase() || "KILOGRAMS",
       inventoryQuantities: variant.inventory_quantity ? [{
         availableQuantity: variant.inventory_quantity,
         locationId: "gid://shopify/Location/1" // Default location
       }] : [],
       optionValues: [
-        variant.option1 && { optionName: options?.[0]?.name, name: variant.option1 },
-        variant.option2 && { optionName: options?.[1]?.name, name: variant.option2 },
-        variant.option3 && { optionName: options?.[2]?.name, name: variant.option3 },
+        variant.option1 && { optionName: options?.[0]?.name || "Size", name: variant.option1 },
+        variant.option2 && { optionName: options?.[1]?.name || "Color", name: variant.option2 },
+        variant.option3 && { optionName: options?.[2]?.name || "Style", name: variant.option3 },
       ].filter(Boolean),
     }));
 
