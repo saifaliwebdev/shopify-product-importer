@@ -17,7 +17,35 @@ import settingsRoutes from "./routes/settings.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
+
+// Graceful shutdown handling
+let server = null;
+
+const gracefulShutdown = async (signal) => {
+  console.log(`Received ${signal}. Starting graceful shutdown...`);
+  
+  if (server) {
+    server.close(() => {
+      console.log('Server closed');
+    });
+  }
+  
+  // Close database connection
+  try {
+    const mongoose = await import('mongoose');
+    await mongoose.default.connection.close();
+    console.log('Database connection closed');
+  } catch (error) {
+    console.error('Error closing database:', error.message);
+  }
+  
+  process.exit(0);
+};
+
+// Handle SIGTERM and SIGINT
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Connect to MongoDB
 connectDB();
@@ -50,7 +78,7 @@ app.use(express.static(distPath, { index: false }));
 
 // Health check
 app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // Shopify Auth
@@ -66,10 +94,6 @@ app.post(
   shopify.config.webhooks.path,
   shopify.processWebhooks({ webhookHandlers: {} })
 );
-
-
-
-
 
 // Authenticated routes
 app.use("/api/*", shopify.validateAuthenticatedSession());
@@ -88,7 +112,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-app.listen(PORT, () => {
+// Start server
+server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
 
