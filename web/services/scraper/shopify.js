@@ -81,12 +81,21 @@ class ShopifyScraper {
    * Transform Shopify product data to our format
    */
   transformProduct(data, sourceUrl) {
+    // Ensure tags are always an array
+    let tags = [];
+    if (Array.isArray(data.tags)) {
+      tags = data.tags;
+    } else if (typeof data.tags === 'string') {
+      // Handle comma-separated string
+      tags = data.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+    }
+
     return {
       title: data.title,
       description: data.body_html || data.description || "",
       vendor: data.vendor || "",
       product_type: data.product_type || "",
-      tags: data.tags || [],
+      tags: tags,
       images: (data.images || []).map(img => ({
         src: img.src || img,
         alt: img.alt || data.title,
