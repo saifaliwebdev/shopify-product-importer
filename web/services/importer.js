@@ -1,6 +1,7 @@
 import shopify from "../shopify.js";
 import ImageHandler from "./imageHandler.js";
 import Import from "../models/Import.js";
+import { convertPriceForImport } from "../utils/currency.js";
 
 class ProductImporter {
   constructor() {
@@ -21,17 +22,31 @@ class ProductImporter {
     } = options;
 
     try {
-      // 1. Process images
+      // 1. Get store currency
+      const client = new shopify.api.clients.Graphql({ session });
+      const storeResponse = await client.query({
+        data: `{
+          shop {
+            currencyCode
+          }
+        }`,
+      });
+      const storeCurrency = storeResponse.body?.data?.shop?.currencyCode || 'USD';
+      console.log("🏪 Store currency:", storeCurrency);
+
+      // 2. Process images
       let images = productData.images || [];
       if (downloadImages && images.length > 0) {
         images = await this.imageHandler.processImages(images);
       }
 
-      // 2. Apply price markup
+      // 3. Apply price markup and currency conversion
       const variants = this.applyPriceMarkup(
         productData.variants,
         priceMarkup,
-        priceMarkupType
+        priceMarkupType,
+        storeCurrency,
+        productData
       );
 
       console.log("📦 Original variants:", productData.variants);
@@ -44,8 +59,8 @@ class ProductImporter {
       console.log("   - variants[0]?.price !== '0.00':", variants[0]?.price !== "0.00");
       console.log("   - Condition result:", variants.length > 0 && variants[0]?.price && variants[0]?.price !== "0.00");
 
-      // 3. Create product in Shopify
-      const client = new shopify.api.clients.Graphql({ session });
+      // 4. Create product in Shopify
+      const shopifyClient = new shopify.api.clients.Graphql({ session });
 
       console.log("📦 Creating product in Shopify:", productData.title);
 
@@ -196,22 +211,32 @@ class ProductImporter {
   /**
    * Apply price markup to variants
    */
-  applyPriceMarkup(variants, markup, type) {
-    if (!markup || markup === 0) return variants;
-
+  applyPriceMarkup(variants, markup, type, storeCurrency, productData) {
     return variants.map(variant => {
-      let price = parseFloat(variant.price) || 0;
-      let comparePrice = parseFloat(variant.compare_at_price) || 0;
+      // First, convert price to store currency
+      let price = convertPriceForImport(variant.price, {
+        url: productData.source_url,
+        vendor: productData.vendor,
+      }, storeCurrency);
 
-      if (type === "percentage") {
-        price = price * (1 + markup / 100);
-        if (comparePrice) {
-          comparePrice = comparePrice * (1 + markup / 100);
-        }
-      } else {
-        price = price + markup;
-        if (comparePrice) {
-          comparePrice = comparePrice + markup;
+      let comparePrice = variant.compare_at_price ?
+        convertPriceForImport(variant.compare_at_price, {
+          url: productData.source_url,
+          vendor: productData.vendor,
+        }, storeCurrency) : null;
+
+      // Then apply markup
+      if (markup && markup !== 0) {
+        if (type === "percentage") {
+          price = price * (1 + markup / 100);
+          if (comparePrice) {
+            comparePrice = comparePrice * (1 + markup / 100);
+          }
+        } else {
+          price = price + markup;
+          if (comparePrice) {
+            comparePrice = comparePrice + markup;
+          }
         }
       }
 
