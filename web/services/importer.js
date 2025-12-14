@@ -107,7 +107,15 @@ class ProductImporter {
         },
       });
 
-      console.log("📦 Product creation response:", JSON.stringify(createResponse, null, 2));
+      try {
+        console.log("📦 Product creation response received");
+        // Log key parts separately to avoid JSON stringify issues
+        console.log("📦 Response body exists:", !!createResponse.body);
+        console.log("📦 Response data exists:", !!createResponse.body?.data);
+        console.log("📦 ProductCreate exists:", !!createResponse.body?.data?.productCreate);
+      } catch (logError) {
+        console.log("📦 Could not log response details:", logError.message);
+      }
 
       const result = createResponse.body?.data?.productCreate || createResponse.data?.productCreate;
 
