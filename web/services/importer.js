@@ -257,15 +257,26 @@ class ProductImporter {
     console.log("📦 Creating", variants.length, "variants for product:", productId);
     console.log("📦 Product options:", JSON.stringify(options, null, 2));
 
-    // First create options if they don't exist
-    if (options && options.length > 0) {
-      console.log("⚙️ Setting up product options...");
+    // For products with variants, we need to create them using individual variant creates
+    // because bulk create conflicts with existing variants
+    console.log("🔄 Using individual variant creation to avoid conflicts...");
+
+    let createdCount = 0;
+    for (const variant of variants) {
       try {
-        const optionsResponse = await client.query({
+        console.log("📝 Creating variant:", variant.title || `${variant.option1} / ${variant.option2}`);
+
+        const response = await client.query({
           data: {
             query: `
-              mutation productOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
-                productOptionsCreate(productId: $productId, options: $options) {
+              mutation productVariantCreate($input: ProductVariantInput!) {
+                productVariantCreate(input: $input) {
+                  productVariant {
+                    id
+                    title
+                    price
+                    sku
+                  }
                   userErrors {
                     field
                     message
@@ -274,76 +285,42 @@ class ProductImporter {
               }
             `,
             variables: {
-              productId,
-              options: options.map(opt => ({
-                name: opt.name,
-                values: opt.values.map(v => ({ name: v })),
-              })),
+              input: {
+                productId: productId,
+                price: variant.price,
+                compareAtPrice: variant.compare_at_price,
+                sku: variant.sku,
+                weight: variant.weight,
+                weightUnit: variant.weight_unit?.toUpperCase() || "KILOGRAMS",
+                inventoryQuantities: variant.inventory_quantity ? [{
+                  availableQuantity: variant.inventory_quantity,
+                  locationId: "gid://shopify/Location/1"
+                }] : [],
+                option1: variant.option1,
+                option2: variant.option2,
+                option3: variant.option3,
+              },
             },
           },
         });
 
-        const optionsResult = optionsResponse.body?.data?.productOptionsCreate;
-        if (optionsResult?.userErrors?.length > 0) {
-          console.error("❌ Options creation errors:", optionsResult.userErrors);
+        const result = response.body?.data?.productVariantCreate || response.data?.productVariantCreate;
+
+        if (result.userErrors?.length > 0) {
+          console.error("❌ Variant create error:", result.userErrors[0]?.message);
         } else {
-          console.log("✅ Options created successfully");
+          createdCount++;
+          console.log("✅ Variant created:", result.productVariant?.title);
         }
-      } catch (optionsError) {
-        console.error("❌ Options creation failed:", optionsError.message);
+
+        // Small delay to avoid rate limits
+        await this.delay(100);
+      } catch (variantError) {
+        console.error("❌ Variant creation failed:", variantError.message);
       }
     }
 
-    // Prepare variants for bulk create
-    // Note: ProductVariantsBulkInput only accepts price, compareAtPrice, inventoryQuantities, and optionValues
-    // sku, weight, weightUnit must be set separately after creation
-    const variantInputs = variants.map(variant => ({
-      price: variant.price,
-      compareAtPrice: variant.compare_at_price,
-      inventoryQuantities: variant.inventory_quantity ? [{
-        availableQuantity: variant.inventory_quantity,
-        locationId: "gid://shopify/Location/1" // Default location
-      }] : [],
-      optionValues: [
-        variant.option1 && { optionName: options?.[0]?.name || "Size", name: variant.option1 },
-        variant.option2 && { optionName: options?.[1]?.name || "Color", name: variant.option2 },
-        variant.option3 && { optionName: options?.[2]?.name || "Style", name: variant.option3 },
-      ].filter(Boolean),
-    }));
-
-    console.log("📦 Variant inputs:", JSON.stringify(variantInputs, null, 2));
-
-    // Create variants in bulk
-    const response = await client.query({
-      data: {
-        query: `
-          mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-            productVariantsBulkCreate(productId: $productId, variants: $variants) {
-              productVariants {
-                id
-                title
-                price
-                sku
-              }
-              userErrors {
-                field
-                message
-              }
-            }
-          }
-        `,
-        variables: { productId, variants: variantInputs },
-      },
-    });
-
-    const result = response.body?.data?.productVariantsBulkCreate || response.data?.productVariantsBulkCreate;
-
-    if (result.userErrors?.length > 0) {
-      console.error("❌ Variant bulk create errors:", result.userErrors);
-      throw new Error("Variant creation failed: " + result.userErrors.map(e => e.message).join(", "));
-    }
-
-    console.log("✅ Created variants:", result.productVariants?.length || 0);
+    console.log("✅ Created", createdCount, "out of", variants.length, "variants");
   }
 
   /**
