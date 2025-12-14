@@ -59,4 +59,30 @@ router.get("/usage", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/settings/store
+ * Get store information including currency
+ */
+router.get("/store", async (req, res) => {
+  try {
+    const session = res.locals.shopify.session;
+    const client = new shopify.api.clients.Graphql({ session });
+
+    const response = await client.query({
+      data: `{
+        shop {
+          currencyCode
+          currencyFormats {
+            moneyFormat
+          }
+        }
+      }`,
+    });
+
+    res.json(response.body.data.shop);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
