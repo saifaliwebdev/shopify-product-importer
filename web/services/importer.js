@@ -261,22 +261,18 @@ class ProductImporter {
 
   /**
    * Apply price markup to variants
+   * Note: Currency conversion disabled - prices are passed as-is from source
    */
   applyPriceMarkup(variants, markup, type, storeCurrency, productData) {
     return variants.map(variant => {
-      // First, convert price to store currency
-      let price = convertPriceForImport(variant.price, {
-        url: productData.source_url,
-        vendor: productData.vendor,
-      }, storeCurrency);
+      // Use original price directly (no currency conversion)
+      // This prevents incorrect conversion issues
+      let price = parseFloat(variant.price) || 0;
+      let comparePrice = variant.compare_at_price ? parseFloat(variant.compare_at_price) : null;
 
-      let comparePrice = variant.compare_at_price ?
-        convertPriceForImport(variant.compare_at_price, {
-          url: productData.source_url,
-          vendor: productData.vendor,
-        }, storeCurrency) : null;
+      console.log("💰 Original price:", variant.price, "-> Parsed:", price);
 
-      // Then apply markup
+      // Apply markup if specified
       if (markup && markup !== 0) {
         if (type === "percentage") {
           price = price * (1 + markup / 100);
@@ -284,11 +280,13 @@ class ProductImporter {
             comparePrice = comparePrice * (1 + markup / 100);
           }
         } else {
-          price = price + markup;
+          // Fixed amount
+          price = price + parseFloat(markup);
           if (comparePrice) {
-            comparePrice = comparePrice + markup;
+            comparePrice = comparePrice + parseFloat(markup);
           }
         }
+        console.log("💰 After markup:", price);
       }
 
       return {
