@@ -86,15 +86,7 @@ class ProductImporter {
         productData
       );
 
-      console.log("📦 Original variants:", productData.variants);
-      console.log("📦 Processed variants:", variants);
-
-      // Check condition immediately
-      console.log("🔍 Checking variant update condition:");
-      console.log("   - variants.length:", variants.length);
-      console.log("   - variants[0]?.price:", variants[0]?.price);
-      console.log("   - variants[0]?.price !== '0.00':", variants[0]?.price !== "0.00");
-      console.log("   - Condition result:", variants.length > 0 && variants[0]?.price && variants[0]?.price !== "0.00");
+      console.log("📦 Variants count:", variants.length, "- First price:", variants[0]?.price);
 
       // 4. Create product in Shopify
       const shopifyClient = new shopify.api.clients.Graphql({ session });
@@ -382,15 +374,25 @@ class ProductImporter {
         return variantInput;
       });
 
+      // Get location ID for inventory
+      const locationId = await this.getLocationId(client);
+      console.log("📍 Using location:", locationId);
+
       const response = await client.query({
         data: {
           query: `
-            mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!, $strategy: ProductVariantsBulkCreateStrategy) {
-              productVariantsBulkCreate(productId: $productId, variants: $variants, strategy: $strategy) {
+            mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkCreate(productId: $productId, variants: $variants) {
                 productVariants {
                   id
                   title
                   price
+                  optionValues {
+                    name
+                    value {
+                      name
+                    }
+                  }
                 }
                 userErrors {
                   field
@@ -402,7 +404,6 @@ class ProductImporter {
           variables: {
             productId: productId,
             variants: bulkVariants,
-            strategy: "REMOVE_STANDALONE_VARIANT",
           },
         },
       });
