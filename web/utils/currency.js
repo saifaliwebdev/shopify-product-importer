@@ -85,40 +85,42 @@ function convertCurrency(amount, fromCurrency, toCurrency) {
 
 /**
  * Detect currency from price and context
+ * For Shopify stores, prices are usually in store's currency (often USD/EUR)
+ * We should NOT assume high prices are PKR - that was causing issues
  */
 function detectCurrency(price, context = {}) {
   const priceNum = parseFloat(price);
+  const url = context.url?.toLowerCase() || '';
 
-  // High prices (> 10000) are likely PKR or other high-value currencies
-  if (priceNum > 10000) {
-    // Check context clues
-    if (context.url?.includes('.pk') || context.vendor?.toLowerCase().includes('pakistan')) {
-      return 'PKR';
-    }
-    if (context.url?.includes('.bd') || context.vendor?.toLowerCase().includes('bangladesh')) {
-      return 'BDT';
-    }
-    if (context.url?.includes('.lk') || context.vendor?.toLowerCase().includes('sri lanka')) {
-      return 'LKR';
-    }
-    if (context.url?.includes('.np') || context.vendor?.toLowerCase().includes('nepal')) {
-      return 'NPR';
-    }
-    // Default to PKR for high prices if no context
+  // Check URL domain for currency hints
+  if (url.includes('.pk') || url.includes('pakistan')) {
     return 'PKR';
   }
-
-  // Medium prices (1000-10000) could be INR, EGP, etc.
-  if (priceNum > 1000) {
-    if (context.url?.includes('.in') || context.vendor?.toLowerCase().includes('india')) {
-      return 'INR';
-    }
-    if (context.url?.includes('.eg') || context.vendor?.toLowerCase().includes('egypt')) {
-      return 'EGP';
-    }
+  if (url.includes('.in') || url.includes('india')) {
+    return 'INR';
+  }
+  if (url.includes('.bd') || url.includes('bangladesh')) {
+    return 'BDT';
+  }
+  if (url.includes('.uk') || url.includes('.co.uk')) {
+    return 'GBP';
+  }
+  if (url.includes('.eu') || url.includes('.de') || url.includes('.fr')) {
+    return 'EUR';
+  }
+  if (url.includes('.ca')) {
+    return 'CAD';
+  }
+  if (url.includes('.au')) {
+    return 'AUD';
+  }
+  if (url.includes('.ae') || url.includes('dubai')) {
+    return 'AED';
   }
 
-  // Low prices are likely USD or EUR
+  // For Shopify stores with myshopify.com or generic .com domains
+  // Assume USD as default - don't convert based on price value alone
+  // This prevents incorrect currency conversion that was breaking prices
   return 'USD';
 }
 

@@ -42,23 +42,35 @@ router.get("/collections", async (req, res) => {
   try {
     const session = res.locals.shopify.session;
 
-    // Use REST API instead of GraphQL for better reliability
-    const response = await shopify.api.rest.CustomCollection.all({
-      session: session,
-      limit: 100,
+    // Use GraphQL to get collections with proper GID format
+    const client = new shopify.api.clients.Graphql({ session });
+    
+    const response = await client.query({
+      data: `{
+        collections(first: 100) {
+          edges {
+            node {
+              id
+              title
+              handle
+              productsCount
+            }
+          }
+        }
+      }`,
     });
 
-    // Handle different response formats
-    const collections = Array.isArray(response) ? response : (response.data || []);
-
-    // Transform to match expected format
-    const formattedCollections = collections.map(collection => ({
-      id: collection.id,
-      title: collection.title,
-      handle: collection.handle,
-      productsCount: collection.products_count || 0,
+    const collections = response.body?.data?.collections?.edges || [];
+    
+    // Transform to match expected format with GID
+    const formattedCollections = collections.map(({ node }) => ({
+      id: node.id, // This is already in gid://shopify/Collection/123 format
+      title: node.title,
+      handle: node.handle,
+      productsCount: node.productsCount || 0,
     }));
 
+    console.log("📦 Collections fetched:", formattedCollections.length);
     res.json(formattedCollections);
 
   } catch (error) {
