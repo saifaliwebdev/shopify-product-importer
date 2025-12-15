@@ -154,7 +154,14 @@ class ProductImporter {
       console.log("✅ Product created:", productId);
       console.log("📦 Created options:", createdOptions.map(o => o.name).join(", "));
 
-      // Step 2: Handle variants
+      // Step 2: Delete default variant first to avoid conflicts
+      try {
+        await this.deleteDefaultVariant(client, productId);
+      } catch (error) {
+        console.log("⚠️ Could not delete default variant:", error.message);
+      }
+
+      // Step 3: Handle variants
       try {
         if (variants.length <= 1 && (!productData.options || productData.options.length === 0)) {
           // Single variant - just update price
