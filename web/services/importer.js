@@ -361,7 +361,12 @@ class ProductImporter {
 
       // ✅ Enable inventory tracking and set quantities for all created variants
       if (inventoryQuantity > 0) {
-        console.log(`📦 Setting inventory quantity to ${inventoryQuantity} for ${createdVariants.length} variants`);
+        console.log(`📦 Enabling inventory tracking and setting quantity to ${inventoryQuantity} for ${createdVariants.length} variants`);
+        
+        // First, enable inventory tracking for all variants
+        await this.enableInventoryTracking(client, createdVariants);
+        
+        // Then set inventory quantities
         await this.setInventoryQuantities(client, createdVariants, inventoryQuantity);
       }
 
@@ -744,6 +749,51 @@ class ProductImporter {
 
     } catch (error) {
       console.error("❌❌ Inventory update failed :", error.message);
+    }
+  }
+
+  async enableInventoryTracking(client, variants) {
+    try {
+      console.log(`📦 Enabling inventory tracking for ${variants.length} variants`);
+      
+      // Use productVariantsBulkUpdate to enable inventory tracking
+      const response = await client.query({
+        data: {
+          query: `mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                productVariants {
+                  id
+                  inventoryManagement
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `,
+          variables: {
+            productId: variants[0]?.id?.split('/').slice(0, -1).join('/'), // Extract product ID from variant ID
+            variants: variants.map(v => ({
+              id: v.id,
+              inventoryManagement: "SHOPIFY"
+            }))
+          },
+        },
+      });
+
+      const result = response.body?.data?.productVariantsBulkUpdate;
+
+      if (result?.userErrors?.length > 0) {
+        console.error("❌ Inventory tracking enable errors:", result.userErrors);
+        return;
+      }
+
+      const updatedVariants = result?.productVariants || [];
+      console.log(`✅ Enabled inventory tracking for ${updatedVariants.length} variants`);
+
+    } catch (error) {
+      console.error("❌ Failed to enable inventory tracking:", error.message);
     }
   }
 }
