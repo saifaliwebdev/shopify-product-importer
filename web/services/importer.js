@@ -78,9 +78,6 @@ class ProductImporter {
 
       console.log("📦 Variants count:", variants.length, "- First price:", variants[0]?.price);
 
-      const shopifyClient = new shopify.api.clients.Graphql({ session });
-      console.log("📦 Creating product in Shopify:", productData.title);
-
       const productStatus = status === "active" ? "ACTIVE" : "DRAFT";
       console.log("📦 Product status will be:", productStatus);
 
@@ -90,6 +87,10 @@ class ProductImporter {
 
       const finalVendor = replaceVendor || productData.vendor || "";
 
+      // Build product options for creation
+      const productOptions = this.buildProductOptions(productData.options || []);
+      console.log("📦 Product options:", JSON.stringify(productOptions, null, 2));
+
       const productInput = {
         title: finalTitle,
         descriptionHtml: productData.description,
@@ -98,6 +99,11 @@ class ProductImporter {
         tags: productData.tags || [],
         status: productStatus,
       };
+
+      // Add options to product if they exist
+      if (productOptions.length > 0) {
+        productInput.productOptions = productOptions;
+      }
 
       console.log("📦 Product input:", JSON.stringify(productInput, null, 2));
 
@@ -111,6 +117,11 @@ class ProductImporter {
                   title
                   handle
                   status
+                  options {
+                    id
+                    name
+                    values
+                  }
                   variants(first: 100) {
                     edges {
                       node {
@@ -148,6 +159,7 @@ class ProductImporter {
       const productId = createdProduct.id;
 
       console.log("✅ Product created successfully:", productId);
+      console.log("📦 Product options created:", createdProduct.options);
 
       try {
         console.log("🔍 Handling variants for product...");
@@ -168,7 +180,7 @@ class ProductImporter {
           }
         } else if (variants.length > 1 || productData.options?.length > 0) {
           console.log("📦 Multiple variants product - creating variants with bulk create");
-          await this.createProductVariantsBulk(client, productId, variants, productData.options || []);
+          await this.createProductVariantsBulk(client, productId, variants, productData.options || [], createdProduct.options || []);
         } else {
           console.log("⏭️ Unhandled variant scenario");
         }
@@ -217,6 +229,16 @@ class ProductImporter {
     }
   }
 
+  // Build product options array for product creation
+  buildProductOptions(options) {
+    if (!options || options.length === 0) return [];
+    
+    return options.map(opt => ({
+      name: opt.name,
+      values: opt.values.map(v => ({ name: v }))
+    }));
+  }
+
   applyPriceMarkup(variants, markup, type, storeCurrency, productData) {
     return variants.map(variant => {
       let price = parseFloat(variant.price) || 0;
@@ -247,22 +269,89 @@ class ProductImporter {
     });
   }
 
-  // CORRECT APPROACH: Create variants using productVariantsBulkCreate
-  async createProductVariantsBulk(client, productId, variants, options) {
+  // FIXED: Create variants using new optionValues format
+  async createProductVariantsBulk(client, productId, variants, sourceOptions, createdOptions) {
     console.log("📦 Creating", variants.length, "variants with bulk create");
+    console.log("📦 Source options:", JSON.stringify(sourceOptions, null, 2));
+    console.log("📦 Created options:", JSON.stringify(createdOptions, null, 2));
     
     try {
-      // Prepare variant inputs for bulk create
-      const variantInputs = variants.map(variant => ({
-        price: variant.price,
-        compareAtPrice: variant.compare_at_price || null,
-        sku: variant.sku || "",
-        option1: variant.option1 || null,
-        option2: variant.option2 || null,
-        option3: variant.option3 || null,
-      }));
+      // Build option name mapping
+      const optionNames = [];
+      if (createdOptions && createdOptions.length > 0) {
+        createdOptions.forEach(opt => optionNames.push(opt.name));
+      } else if (sourceOptions && sourceOptions.length > 0) {
+        sourceOptions.forEach(opt => optionNames.push(opt.name));
+      } else {
+        // Default option names
+        optionNames.push("Option 1", "Option 2", "Option 3");
+      }
 
-      console.log("📦 Bulk creating", variantInputs.length, "variants");
+      console.log("📦 Option names for variants:", optionNames);
+
+      // Prepare variant inputs with optionValues format (NEW API)
+      const variantInputs = variants.map((variant, index) => {
+        // Build optionValues array
+        const optionValues = [];
+        
+        if (variant.option1 && optionNames[0]) {
+          optionValues.push({
+            optionName: optionNames[0],
+            name: variant.option1
+          });
+        }
+        
+        if (variant.option2 && optionNames[1]) {
+          optionValues.push({
+            optionName: optionNames[1],
+            name: variant.option2
+          });
+        }
+        
+        if (variant.option3 && optionNames[2]) {
+          optionValues.push({
+            optionName: optionNames[2],
+            name: variant.option3
+          });
+        }
+
+        const variantInput = {
+          price: variant.price,
+          optionValues: optionValues,
+        };
+
+        // Add optional fields if they exist
+        if (variant.compare_at_price) {
+          variantInput.compareAtPrice = variant.compare_at_price;
+        }
+        
+        if (variant.sku) {
+          variantInput.sku = variant.sku;
+        }
+
+        if (variant.weight) {
+          variantInput.weight = parseFloat(variant.weight);
+          variantInput.weightUnit = (variant.weight_unit || 'kg').toUpperCase();
+        }
+
+        if (index === 0) {
+          console.log("📦 First variant input example:", JSON.stringify(variantInput, null, 2));
+        }
+
+        return variantInput;
+      });
+
+      // Filter out variants with no option values (skip invalid ones)
+      const validVariantInputs = variantInputs.filter(v => v.optionValues && v.optionValues.length > 0);
+
+      if (validVariantInputs.length === 0) {
+        console.log("⚠️ No valid variants to create (no option values)");
+        // Just update the default variant price
+        await this.updateFirstVariantPrice(client, productId, variants[0]);
+        return;
+      }
+
+      console.log("📦 Bulk creating", validVariantInputs.length, "variants");
 
       const response = await client.query({
         data: {
@@ -273,20 +362,22 @@ class ProductImporter {
                   id
                   title
                   price
-                  option1
-                  option2
-                  option3
+                  selectedOptions {
+                    name
+                    value
+                  }
                 }
                 userErrors {
                   field
                   message
+                  code
                 }
               }
             }
           `,
           variables: {
             productId: productId,
-            variants: variantInputs,
+            variants: validVariantInputs,
           },
         },
       });
@@ -294,21 +385,159 @@ class ProductImporter {
       const result = response.body?.data?.productVariantsBulkCreate;
       
       if (result?.userErrors?.length > 0) {
-        console.error("📦 Bulk variant creation errors:", result.userErrors);
-        throw new Error(result.userErrors.map(e => e.message).join(", "));
+        console.error("📦 Bulk variant creation errors:", JSON.stringify(result.userErrors, null, 2));
+        
+        // Try alternative approach if bulk create fails
+        console.log("🔄 Trying alternative variant creation method...");
+        await this.createVariantsOneByOne(client, productId, variants, optionNames);
+        return;
       }
 
       const createdVariants = result?.productVariants || [];
-      console.log(`✅ Successfully created ${createdVariants.length} variants out of ${variants.length}`);
+      console.log(`✅ Successfully created ${createdVariants.length} variants out of ${validVariantInputs.length}`);
 
-      // Log created variants
-      createdVariants.forEach((variant, index) => {
-        console.log(`✅ Variant ${index + 1}: ${variant.title || variant.option1 || "Default"} - Price: ${variant.price}`);
+      // Log first few created variants
+      createdVariants.slice(0, 3).forEach((variant, index) => {
+        console.log(`✅ Variant ${index + 1}: ${variant.title} - Price: ${variant.price}`);
       });
+
+      // Delete default variant if we created new ones
+      if (createdVariants.length > 0) {
+        await this.deleteDefaultVariant(client, productId);
+      }
 
     } catch (error) {
       console.error("❌ Bulk variant creation failed:", error.message);
+      
+      // Fallback: update first variant price
+      try {
+        await this.updateFirstVariantPrice(client, productId, variants[0]);
+      } catch (fallbackError) {
+        console.error("❌ Fallback also failed:", fallbackError.message);
+      }
+      
       throw error;
+    }
+  }
+
+  // Alternative: Create variants one by one
+  async createVariantsOneByOne(client, productId, variants, optionNames) {
+    console.log("🔄 Creating variants one by one...");
+    let successCount = 0;
+
+    for (let i = 0; i < Math.min(variants.length, 100); i++) {
+      const variant = variants[i];
+      
+      try {
+        const optionValues = [];
+        
+        if (variant.option1 && optionNames[0]) {
+          optionValues.push({ optionName: optionNames[0], name: variant.option1 });
+        }
+        if (variant.option2 && optionNames[1]) {
+          optionValues.push({ optionName: optionNames[1], name: variant.option2 });
+        }
+        if (variant.option3 && optionNames[2]) {
+          optionValues.push({ optionName: optionNames[2], name: variant.option3 });
+        }
+
+        if (optionValues.length === 0) continue;
+
+        const response = await client.query({
+          data: {
+            query: `
+              mutation productVariantCreate($input: ProductVariantInput!) {
+                productVariantCreate(input: $input) {
+                  productVariant {
+                    id
+                    title
+                    price
+                  }
+                  userErrors {
+                    field
+                    message
+                  }
+                }
+              }
+            `,
+            variables: {
+              input: {
+                productId: productId,
+                price: variant.price,
+                compareAtPrice: variant.compare_at_price || null,
+                sku: variant.sku || "",
+                options: [variant.option1, variant.option2, variant.option3].filter(Boolean),
+              },
+            },
+          },
+        });
+
+        const result = response.body?.data?.productVariantCreate;
+        if (result?.productVariant) {
+          successCount++;
+        }
+
+        // Small delay to avoid rate limiting
+        await this.delay(100);
+
+      } catch (error) {
+        console.log(`⚠️ Variant ${i + 1} failed:`, error.message);
+      }
+    }
+
+    console.log(`✅ Created ${successCount} variants one by one`);
+  }
+
+  // Delete the default "Default Title" variant
+  async deleteDefaultVariant(client, productId) {
+    try {
+      const response = await client.query({
+        data: {
+          query: `
+            query getProductVariants($id: ID!) {
+              product(id: $id) {
+                variants(first: 100) {
+                  edges {
+                    node {
+                      id
+                      title
+                    }
+                  }
+                }
+              }
+            }
+          `,
+          variables: { id: productId },
+        },
+      });
+
+      const variants = response.body?.data?.product?.variants?.edges || [];
+      const defaultVariant = variants.find(v => v.node.title === "Default Title");
+
+      if (defaultVariant && variants.length > 1) {
+        console.log("🗑️ Deleting default variant:", defaultVariant.node.id);
+        
+        await client.query({
+          data: {
+            query: `
+              mutation productVariantDelete($id: ID!) {
+                productVariantDelete(id: $id) {
+                  deletedProductVariantId
+                  userErrors {
+                    field
+                    message
+                  }
+                }
+              }
+            `,
+            variables: { id: defaultVariant.node.id },
+          },
+        });
+        
+        console.log("✅ Default variant deleted");
+      }
+    } catch (error) {
+      console.log("⚠️ Could not delete default variant:", error.message);
     }
   }
 
@@ -318,7 +547,7 @@ class ProductImporter {
       
       const productResponse = await client.query({
         data: {
-          query: `query { product(id: "${productId}") { variants(first: 1) { edges { node { id } } } }`,
+          query: `query { product(id: "${productId}") { variants(first: 1) { edges { node { id } } } } }`,
         },
       });
       
@@ -335,28 +564,6 @@ class ProductImporter {
     console.log("🔄 Updating variant price:", variantId, "with price:", variantData.price);
 
     try {
-      const variantResponse = await client.query({
-        data: {
-          query: `
-            query getVariantProduct($id: ID!) {
-              productVariant(id: $id) {
-                product {
-                  id
-                }
-              }
-            }
-          `,
-          variables: { id: variantId },
-        },
-      });
-      
-      const productId = variantResponse.body?.data?.productVariant?.product?.id;
-      
-      if (!productId) {
-        console.error("❌ Could not get product ID");
-        throw new Error("Could not get product ID for variant");
-      }
-
       const response = await client.query({
         data: {
           query: `
