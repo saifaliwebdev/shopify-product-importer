@@ -48,6 +48,8 @@ export default function ImportOptions({ options, onChange, collections = [] }) {
               max={options.priceMarkupType === "percentage" ? 100 : 50}
               step={options.priceMarkupType === "percentage" ? 5 : 1}
               output
+              prefix={options.priceMarkupType === "fixed" ? "$" : undefined}
+              suffix={options.priceMarkupType === "percentage" ? "%" : undefined}
             />
             
             <Select
@@ -58,6 +60,7 @@ export default function ImportOptions({ options, onChange, collections = [] }) {
               ]}
               value={options.priceMarkupType}
               onChange={(value) => handleChange("priceMarkupType", value)}
+              helpText="Choose how to apply markup: percentage or fixed amount"
             />
           </BlockStack>
 

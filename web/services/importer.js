@@ -43,6 +43,7 @@ class ProductImporter {
       titlePrefix = "",
       titleSuffix = "",
       replaceVendor = "",
+      inventoryQuantity = 100,
     } = options;
 
     try {
@@ -172,9 +173,9 @@ class ProductImporter {
             await this.updateVariantPrice(client, productId, defaultVariantId, variants[0].price, variants[0].compare_at_price);
           }
         } else {
-          // Multiple variants - create them
-          console.log("📦 Creating", variants.length, "variants...");
-          await this.createAllVariants(client, productId, variants, createdOptions);
+      // Multiple variants - create them
+      console.log("📦 Creating", variants.length, "variants...");
+      await this.createAllVariants(client, productId, variants, createdOptions, inventoryQuantity);
         }
       } catch (variantError) {
         console.error("❌ Variant processing failed:", variantError.message);
@@ -249,7 +250,7 @@ class ProductImporter {
     });
   }
 
-  async createAllVariants(client, productId, variants, createdOptions) {
+  async createAllVariants(client, productId, variants, createdOptions, inventoryQuantity = 100) {
     console.log("📦 Creating variants with optionValues format...");
     
     // Get option names
@@ -403,6 +404,12 @@ class ProductImporter {
 
       if (createdVariants.length > 3) {
         console.log(`   ... and ${createdVariants.length - 3} more variants`);
+      }
+
+      // Set inventory quantities for new variants
+      if (inventoryQuantity > 0) {
+        console.log(`📦 Setting inventory quantity to ${inventoryQuantity} for ${createdVariants.length} variants`);
+        await this.setInventoryQuantities(client, createdVariants, inventoryQuantity);
       }
 
     } catch (error) {
@@ -715,6 +722,76 @@ class ProductImporter {
 
   delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async setInventoryQuantities(client, variants, quantity) {
+    try {
+      // First, get the location ID for inventory management
+      const locationId = await this.getLocationId(client);
+      if (!locationId) {
+        console.log("⚠️ Could not get location ID, skipping inventory update");
+        return;
+      }
+
+      console.log(`📦 Setting inventory for ${variants.length} variants at location: ${locationId}`);
+
+      // Prepare inventory item IDs for bulk operation
+      const inventoryItemIds = variants.map(v => v.id);
+
+      // Set inventory quantities using inventorySetQuantities
+      const response = await client.query({
+        data: {
+          query: `
+            mutation inventorySetQuantities($inventoryItemIds: [ID!]!, $locationId: ID!, $availableQuantity: Int!) {
+              inventorySetQuantities(input: {
+                inventoryItemIds: $inventoryItemIds,
+                locationId: $locationId,
+                availableQuantity: $availableQuantity
+              }) {
+                inventoryLevels {
+                  id
+                  availableQuantity
+                  item {
+                    id
+                  }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `,
+          variables: {
+            inventoryItemIds: inventoryItemIds,
+            locationId: locationId,
+            availableQuantity: quantity,
+          },
+        },
+      });
+
+      const result = response.body?.data?.inventorySetQuantities;
+
+      if (result?.userErrors?.length > 0) {
+        console.error("❌ Inventory update errors:", result.userErrors);
+        return;
+      }
+
+      const updatedLevels = result?.inventoryLevels || [];
+      console.log(`✅ Set inventory quantity to ${quantity} for ${updatedLevels.length} variants`);
+
+      // Show inventory update results
+      updatedLevels.slice(0, 3).forEach((level, i) => {
+        console.log(`   ✅ Variant ${i + 1}: ${quantity} units`);
+      });
+
+      if (updatedLevels.length > 3) {
+        console.log(`   ... and ${updatedLevels.length - 3} more variants`);
+      }
+
+    } catch (error) {
+      console.error("❌ Inventory update failed:", error.message);
+    }
   }
 }
 
