@@ -167,8 +167,8 @@ class ProductImporter {
             console.error("❌ No default variant found for single variant product");
           }
         } else if (variants.length > 1 || productData.options?.length > 0) {
-          console.log("📦 Multiple variants product - creating variants individually");
-          await this.createProductVariantsIndividual(client, productId, variants, productData.options || []);
+          console.log("📦 Multiple variants product - creating variants with bulk create");
+          await this.createProductVariantsBulk(client, productId, variants, productData.options || []);
         } else {
           console.log("⏭️ Unhandled variant scenario");
         }
@@ -247,73 +247,69 @@ class ProductImporter {
     });
   }
 
-  // NEW APPROACH: Create variants individually using productVariantCreate
-  async createProductVariantsIndividual(client, productId, variants, options) {
-    console.log("📦 Creating", variants.length, "variants individually");
+  // CORRECT APPROACH: Create variants using productVariantsBulkCreate
+  async createProductVariantsBulk(client, productId, variants, options) {
+    console.log("📦 Creating", variants.length, "variants with bulk create");
     
-    let createdCount = 0;
-    
-    for (let i = 0; i < variants.length; i++) {
-      const variant = variants[i];
-      
-      try {
-        console.log(`📝 Creating variant ${i + 1}/${variants.length}:`, variant.option1 || "Default");
-        
-        const variantInput = {
-          productId: productId,
-          price: variant.price,
-          compareAtPrice: variant.compare_at_price || null,
-          sku: variant.sku || "",
-          option1: variant.option1 || null,
-          option2: variant.option2 || null,
-          option3: variant.option3 || null,
-        };
+    try {
+      // Prepare variant inputs for bulk create
+      const variantInputs = variants.map(variant => ({
+        price: variant.price,
+        compareAtPrice: variant.compare_at_price || null,
+        sku: variant.sku || "",
+        option1: variant.option1 || null,
+        option2: variant.option2 || null,
+        option3: variant.option3 || null,
+      }));
 
-        const response = await client.query({
-          data: {
-            query: `
-              mutation productVariantCreate($input: ProductVariantInput!) {
-                productVariantCreate(input: $input) {
-                  productVariant {
-                    id
-                    title
-                    price
-                    option1
-                    option2
-                    option3
-                  }
-                  userErrors {
-                    field
-                    message
-                  }
+      console.log("📦 Bulk creating", variantInputs.length, "variants");
+
+      const response = await client.query({
+        data: {
+          query: `
+            mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkCreate(productId: $productId, variants: $variants) {
+                productVariants {
+                  id
+                  title
+                  price
+                  option1
+                  option2
+                  option3
+                }
+                userErrors {
+                  field
+                  message
                 }
               }
-            `,
-            variables: { input: variantInput },
+            }
+          `,
+          variables: {
+            productId: productId,
+            variants: variantInputs,
           },
-        });
+        },
+      });
 
-        const result = response.body?.data?.productVariantCreate;
-        
-        if (result?.userErrors?.length > 0) {
-          console.log(`⚠️ Variant ${i + 1} error:`, result.userErrors[0]?.message);
-        } else if (result?.productVariant) {
-          createdCount++;
-          console.log(`✅ Created variant ${i + 1}: ${result.productVariant.title || result.productVariant.option1 || "Default"} - Price: ${result.productVariant.price}`);
-        }
-
-        // Wait between variants to avoid rate limiting
-        if (i < variants.length - 1) {
-          console.log("⏱️ Waiting 2 seconds to avoid rate limiting...");
-          await this.delay(2000);
-        }
-        
-      } catch (variantError) {
-        console.log(`⚠️ Variant ${i + 1} failed:`, variantError.message);
+      const result = response.body?.data?.productVariantsBulkCreate;
+      
+      if (result?.userErrors?.length > 0) {
+        console.error("📦 Bulk variant creation errors:", result.userErrors);
+        throw new Error(result.userErrors.map(e => e.message).join(", "));
       }
+
+      const createdVariants = result?.productVariants || [];
+      console.log(`✅ Successfully created ${createdVariants.length} variants out of ${variants.length}`);
+
+      // Log created variants
+      createdVariants.forEach((variant, index) => {
+        console.log(`✅ Variant ${index + 1}: ${variant.title || variant.option1 || "Default"} - Price: ${variant.price}`);
+      });
+
+    } catch (error) {
+      console.error("❌ Bulk variant creation failed:", error.message);
+      throw error;
     }
-    
-    console.log(`✅ Created ${createdCount} out of ${variants.length} variants`);
   }
 
   async updateFirstVariantPrice(client, productId, variantData) {
