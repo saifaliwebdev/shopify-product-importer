@@ -316,6 +316,7 @@ class ProductImporter {
           id: existingVariant.id,
           price: String(variant.price),
           compareAtPrice: variant.compare_at_price ? String(variant.compare_at_price) : null,
+          inventoryManagement: "SHOPIFY", // Enable inventory tracking
         });
       } else {
         // Create new variant
@@ -323,6 +324,7 @@ class ProductImporter {
         const variantInput = {
           optionValues: optionValues,
           price: String(variant.price),
+          inventoryManagement: "SHOPIFY", // Enable inventory tracking
         };
 
         // Add compare at price if exists
