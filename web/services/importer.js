@@ -257,15 +257,8 @@ class ProductImporter {
     const optionNames = createdOptions.map(o => o.name);
     console.log("📦 Option names:", optionNames);
 
-    // Fetch existing variants to avoid duplicates
-    console.log("🔍 Checking existing variants...");
-    const existingVariants = await this.getExistingVariants(client, productId);
-    console.log(`📦 Found ${existingVariants.length} existing variants`);
-
     // Prepare variant inputs - ONLY valid fields
     const variantInputs = [];
-    const seenCombinations = new Set();
-    const variantsToUpdate = [];
     
     for (const variant of variants) {
       const optionValues = [];
@@ -295,60 +288,27 @@ class ProductImporter {
       // Skip if no option values
       if (optionValues.length === 0) continue;
 
-      // Create a unique key for this combination
-      const combinationKey = optionValues.map(opt => `${opt.optionName}:${opt.name}`).join('|');
-      
-      if (seenCombinations.has(combinationKey)) {
-        console.log(`⚠️ Skipping duplicate variant: ${combinationKey}`);
-        continue;
+      // Create variant input with inventory tracking enabled
+      const variantInput = {
+        optionValues: optionValues,
+        price: String(variant.price),
+        inventoryManagement: "SHOPIFY", // ✅ Enable inventory tracking
+      };
+
+      // Add compare at price if exists
+      if (variant.compare_at_price) {
+        variantInput.compareAtPrice = String(variant.compare_at_price);
       }
-      seenCombinations.add(combinationKey);
 
-      // Check if this variant already exists
-      const existingVariant = existingVariants.find(v => 
-        this.compareVariantOptions(v.selectedOptions, optionValues)
-      );
-
-      if (existingVariant) {
-        // Update existing variant price
-        console.log(`🔄 Updating existing variant: ${combinationKey}`);
-        variantsToUpdate.push({
-          id: existingVariant.id,
-          price: String(variant.price),
-          compareAtPrice: variant.compare_at_price ? String(variant.compare_at_price) : null,
-          inventoryManagement: "SHOPIFY", // Enable inventory tracking
-        });
-      } else {
-        // Create new variant
-        console.log(`➕ Creating new variant: ${combinationKey}`);
-        const variantInput = {
-          optionValues: optionValues,
-          price: String(variant.price),
-          inventoryManagement: "SHOPIFY", // Enable inventory tracking
-        };
-
-        // Add compare at price if exists
-        if (variant.compare_at_price) {
-          variantInput.compareAtPrice = String(variant.compare_at_price);
-        }
-
-        variantInputs.push(variantInput);
-      }
+      variantInputs.push(variantInput);
     }
 
-    // Update existing variants
-    if (variantsToUpdate.length > 0) {
-      console.log(`🔄 Updating ${variantsToUpdate.length} existing variants...`);
-      await this.updateExistingVariants(client, productId, variantsToUpdate);
-    }
-
-    // Create new variants
     if (variantInputs.length === 0) {
-      console.log("⚠️ No new variants to create");
+      console.log("⚠️ No valid variants to create");
       return;
     }
 
-    console.log(`➕ Creating ${variantInputs.length} new variants`);
+    console.log("📦 Creating", variantInputs.length, "variants");
     console.log("📦 First variant:", JSON.stringify(variantInputs[0], null, 2));
 
     try {
@@ -385,19 +345,11 @@ class ProductImporter {
       
       if (result?.userErrors?.length > 0) {
         console.error("❌ Variant creation errors:", JSON.stringify(result.userErrors, null, 2));
-        
-        // Log details about each error
-        result.userErrors.forEach(error => {
-          if (error.code === 'VARIANT_ALREADY_EXISTS_CHANGE_OPTION_VALUE') {
-            console.error(`❌ Duplicate variant detected: ${error.message}`);
-          }
-        });
-        
         throw new Error(result.userErrors.map(e => e.message).join(", "));
       }
 
       const createdVariants = result?.productVariants || [];
-      console.log(`✅ Created ${createdVariants.length} new variants successfully!`);
+      console.log(`✅ Created ${createdVariants.length} variants successfully!`);
 
       // Show first 3 variants
       createdVariants.slice(0, 3).forEach((v, i) => {
@@ -408,7 +360,7 @@ class ProductImporter {
         console.log(`   ... and ${createdVariants.length - 3} more variants`);
       }
 
-      // Set inventory quantities for new variants
+      // ✅ Set inventory quantities for all created variants
       if (inventoryQuantity > 0) {
         console.log(`📦 Setting inventory quantity to ${inventoryQuantity} for ${createdVariants.length} variants`);
         await this.setInventoryQuantities(client, createdVariants, inventoryQuantity);
