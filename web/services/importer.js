@@ -256,9 +256,15 @@ class ProductImporter {
     const optionNames = createdOptions.map(o => o.name);
     console.log("📦 Option names:", optionNames);
 
+    // Fetch existing variants to avoid duplicates
+    console.log("🔍 Checking existing variants...");
+    const existingVariants = await this.getExistingVariants(client, productId);
+    console.log(`📦 Found ${existingVariants.length} existing variants`);
+
     // Prepare variant inputs - ONLY valid fields
     const variantInputs = [];
     const seenCombinations = new Set();
+    const variantsToUpdate = [];
     
     for (const variant of variants) {
       const optionValues = [];
@@ -288,7 +294,7 @@ class ProductImporter {
       // Skip if no option values
       if (optionValues.length === 0) continue;
 
-      // Create a unique key for this combination to avoid duplicates
+      // Create a unique key for this combination
       const combinationKey = optionValues.map(opt => `${opt.optionName}:${opt.name}`).join('|');
       
       if (seenCombinations.has(combinationKey)) {
@@ -297,26 +303,49 @@ class ProductImporter {
       }
       seenCombinations.add(combinationKey);
 
-      // ONLY these fields are allowed in ProductVariantsBulkInput
-      const variantInput = {
-        optionValues: optionValues,
-        price: String(variant.price),
-      };
+      // Check if this variant already exists
+      const existingVariant = existingVariants.find(v => 
+        this.compareVariantOptions(v.selectedOptions, optionValues)
+      );
 
-      // Add compare at price if exists
-      if (variant.compare_at_price) {
-        variantInput.compareAtPrice = String(variant.compare_at_price);
+      if (existingVariant) {
+        // Update existing variant price
+        console.log(`🔄 Updating existing variant: ${combinationKey}`);
+        variantsToUpdate.push({
+          id: existingVariant.id,
+          price: String(variant.price),
+          compareAtPrice: variant.compare_at_price ? String(variant.compare_at_price) : null,
+        });
+      } else {
+        // Create new variant
+        console.log(`➕ Creating new variant: ${combinationKey}`);
+        const variantInput = {
+          optionValues: optionValues,
+          price: String(variant.price),
+        };
+
+        // Add compare at price if exists
+        if (variant.compare_at_price) {
+          variantInput.compareAtPrice = String(variant.compare_at_price);
+        }
+
+        variantInputs.push(variantInput);
       }
-
-      variantInputs.push(variantInput);
     }
 
+    // Update existing variants
+    if (variantsToUpdate.length > 0) {
+      console.log(`🔄 Updating ${variantsToUpdate.length} existing variants...`);
+      await this.updateExistingVariants(client, productId, variantsToUpdate);
+    }
+
+    // Create new variants
     if (variantInputs.length === 0) {
-      console.log("⚠️ No valid variants to create");
+      console.log("⚠️ No new variants to create");
       return;
     }
 
-    console.log("📦 Creating", variantInputs.length, "variants");
+    console.log(`➕ Creating ${variantInputs.length} new variants`);
     console.log("📦 First variant:", JSON.stringify(variantInputs[0], null, 2));
 
     try {
@@ -365,7 +394,7 @@ class ProductImporter {
       }
 
       const createdVariants = result?.productVariants || [];
-      console.log(`✅ Created ${createdVariants.length} variants successfully!`);
+      console.log(`✅ Created ${createdVariants.length} new variants successfully!`);
 
       // Show first 3 variants
       createdVariants.slice(0, 3).forEach((v, i) => {
@@ -376,11 +405,103 @@ class ProductImporter {
         console.log(`   ... and ${createdVariants.length - 3} more variants`);
       }
 
-      // Delete default variant
-      await this.deleteDefaultVariant(client, productId);
-
     } catch (error) {
       console.error("❌ Bulk create failed:", error.message);
+      throw error;
+    }
+  }
+
+  async getExistingVariants(client, productId) {
+    try {
+      const response = await client.query({
+        data: {
+          query: `
+            query getVariants($id: ID!) {
+              product(id: $id) {
+                variants(first: 100) {
+                  edges {
+                    node {
+                      id
+                      title
+                      price
+                      selectedOptions {
+                        name
+                        value
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          `,
+          variables: { id: productId },
+        },
+      });
+
+      const variants = response.body?.data?.product?.variants?.edges || [];
+      return variants.map(v => v.node);
+    } catch (error) {
+      console.error("❌ Failed to fetch existing variants:", error.message);
+      return [];
+    }
+  }
+
+  compareVariantOptions(existingOptions, newOptionValues) {
+    if (existingOptions.length !== newOptionValues.length) {
+      return false;
+    }
+
+    for (const existing of existingOptions) {
+      const found = newOptionValues.find(newOpt => 
+        newOpt.optionName === existing.name && newOpt.name === existing.value
+      );
+      if (!found) return false;
+    }
+
+    return true;
+  }
+
+  async updateExistingVariants(client, productId, variantsToUpdate) {
+    try {
+      const response = await client.query({
+        data: {
+          query: `
+            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                productVariants {
+                  id
+                  price
+                  title
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `,
+          variables: {
+            productId: productId,
+            variants: variantsToUpdate,
+          },
+        },
+      });
+
+      const result = response.body?.data?.productVariantsBulkUpdate;
+
+      if (result?.userErrors?.length > 0) {
+        console.error("❌ Variant update errors:", result.userErrors);
+        throw new Error(result.userErrors.map(e => e.message).join(", "));
+      }
+
+      const updatedVariants = result?.productVariants || [];
+      console.log(`✅ Updated ${updatedVariants.length} existing variants`);
+      updatedVariants.forEach((v, i) => {
+        console.log(`   ✅ Updated: ${v.title} - $${v.price}`);
+      });
+
+    } catch (error) {
+      console.error("❌ Variant update failed:", error.message);
       throw error;
     }
   }
