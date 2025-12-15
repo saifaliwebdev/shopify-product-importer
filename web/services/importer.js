@@ -744,7 +744,7 @@ class ProductImporter {
       }
 
     } catch (error) {
-      console.error("❌ Inventory update failed:", error.message);
+      console.error("❌❌ Inventory update failed :", error.message);
     }
   }
 }
