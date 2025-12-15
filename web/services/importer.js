@@ -288,11 +288,10 @@ class ProductImporter {
       // Skip if no option values
       if (optionValues.length === 0) continue;
 
-      // Create variant input with inventory tracking enabled
+      // Create variant input (inventoryManagement not allowed in bulk create)
       const variantInput = {
         optionValues: optionValues,
         price: String(variant.price),
-        inventoryManagement: "SHOPIFY", // ✅ Enable inventory tracking
       };
 
       // Add compare at price if exists
@@ -360,7 +359,7 @@ class ProductImporter {
         console.log(`   ... and ${createdVariants.length - 3} more variants`);
       }
 
-      // ✅ Set inventory quantities for all created variants
+      // ✅ Enable inventory tracking and set quantities for all created variants
       if (inventoryQuantity > 0) {
         console.log(`📦 Setting inventory quantity to ${inventoryQuantity} for ${createdVariants.length} variants`);
         await this.setInventoryQuantities(client, createdVariants, inventoryQuantity);
