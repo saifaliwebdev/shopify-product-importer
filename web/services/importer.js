@@ -251,6 +251,7 @@ class ProductImporter {
 
     // Prepare variant inputs - ONLY valid fields
     const variantInputs = [];
+    const seenCombinations = new Set();
     
     for (const variant of variants) {
       const optionValues = [];
@@ -279,6 +280,15 @@ class ProductImporter {
 
       // Skip if no option values
       if (optionValues.length === 0) continue;
+
+      // Create a unique key for this combination to avoid duplicates
+      const combinationKey = optionValues.map(opt => `${opt.optionName}:${opt.name}`).join('|');
+      
+      if (seenCombinations.has(combinationKey)) {
+        console.log(`⚠️ Skipping duplicate variant: ${combinationKey}`);
+        continue;
+      }
+      seenCombinations.add(combinationKey);
 
       // ONLY these fields are allowed in ProductVariantsBulkInput
       const variantInput = {
@@ -336,6 +346,14 @@ class ProductImporter {
       
       if (result?.userErrors?.length > 0) {
         console.error("❌ Variant creation errors:", JSON.stringify(result.userErrors, null, 2));
+        
+        // Log details about each error
+        result.userErrors.forEach(error => {
+          if (error.code === 'VARIANT_ALREADY_EXISTS_CHANGE_OPTION_VALUE') {
+            console.error(`❌ Duplicate variant detected: ${error.message}`);
+          }
+        });
+        
         throw new Error(result.userErrors.map(e => e.message).join(", "));
       }
 
