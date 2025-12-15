@@ -90,6 +90,37 @@ class ShopifyScraper {
       tags = data.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
     }
 
+    // Remove duplicate variants based on option combinations
+    const seenCombinations = new Set();
+    const uniqueVariants = [];
+    
+    (data.variants || []).forEach(variant => {
+      const combinationKey = [
+        variant.option1 || '',
+        variant.option2 || '',
+        variant.option3 || ''
+      ].join('|');
+      
+      if (!seenCombinations.has(combinationKey)) {
+        seenCombinations.add(combinationKey);
+        uniqueVariants.push({
+          title: variant.title,
+          price: variant.price,
+          compare_at_price: variant.compare_at_price,
+          sku: variant.sku,
+          weight: variant.weight,
+          weight_unit: variant.weight_unit || "kg",
+          inventory_quantity: variant.inventory_quantity || 0,
+          option1: variant.option1,
+          option2: variant.option2,
+          option3: variant.option3,
+          requires_shipping: variant.requires_shipping !== false,
+        });
+      }
+    });
+
+    console.log(`📦 Shopify scraper: ${data.variants?.length || 0} variants → ${uniqueVariants.length} unique variants`);
+
     return {
       title: data.title,
       description: data.body_html || data.description || "",
@@ -101,19 +132,7 @@ class ShopifyScraper {
         alt: img.alt || data.title,
         position: img.position || 1,
       })),
-      variants: (data.variants || []).map(variant => ({
-        title: variant.title,
-        price: variant.price,
-        compare_at_price: variant.compare_at_price,
-        sku: variant.sku,
-        weight: variant.weight,
-        weight_unit: variant.weight_unit || "kg",
-        inventory_quantity: variant.inventory_quantity || 0,
-        option1: variant.option1,
-        option2: variant.option2,
-        option3: variant.option3,
-        requires_shipping: variant.requires_shipping !== false,
-      })),
+      variants: uniqueVariants,
       options: data.options || [],
       source_url: sourceUrl,
       source_id: data.id?.toString(),
