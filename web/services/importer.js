@@ -747,26 +747,63 @@ class ProductImporter {
 
       console.log(`📦 Setting inventory for ${variants.length} variants at location: ${locationId}`);
 
-      // Prepare inventory item IDs for bulk operation
-      const inventoryItemIds = variants.map(v => v.id);
+      // Fetch inventory item IDs for each variant
+      const inventoryAdjustments = [];
+      
+      for (const variant of variants) {
+        try {
+          const response = await client.query({
+            data: {
+              query: `
+                query getVariantInventoryItem($id: ID!) {
+                  productVariant(id: $id) {
+                    inventoryItem {
+                      id
+                    }
+                  }
+                }
+              `,
+              variables: { id: variant.id },
+            },
+          });
 
-      // Set inventory quantities using inventorySetQuantities
+          const inventoryItemId = response.body?.data?.productVariant?.inventoryItem?.id;
+          
+          if (inventoryItemId) {
+            inventoryAdjustments.push({
+              inventoryItemId: inventoryItemId,
+              locationId: locationId,
+              availableQuantity: quantity,
+              reason: "initial_import"
+            });
+          } else {
+            console.error(`❌ Could not get inventory item for variant: ${variant.title}`);
+          }
+        } catch (error) {
+          console.error(`❌ Failed to get inventory item for variant ${variant.title}:`, error.message);
+        }
+      }
+
+      if (inventoryAdjustments.length === 0) {
+        console.log("⚠️ No inventory adjustments to apply");
+        return;
+      }
+
+      console.log(`📦 Applying ${inventoryAdjustments.length} inventory adjustments`);
+
+      // Set inventory quantities using inventorySetQuantities with adjustments
       const response = await client.query({
         data: {
           query: `
-            mutation inventorySetQuantities($inventoryItemIds: [ID!]!, $locationId: ID!, $availableQuantity: Int!) {
+            mutation inventorySetQuantities($inventoryAdjustments: [InventoryAdjustmentInput!]!) {
               inventorySetQuantities(input: {
-                inventoryItemIds: $inventoryItemIds,
-                locationId: $locationId,
-                availableQuantity: $availableQuantity,
-                reason: "initial_import"
+                inventoryAdjustments: $inventoryAdjustments
               }) {
-                inventoryLevels {
-                  id
-                  availableQuantity
-                  item {
+                inventoryAdjustments {
+                  inventoryItem {
                     id
                   }
+                  availableQuantity
                 }
                 userErrors {
                   field
@@ -776,9 +813,7 @@ class ProductImporter {
             }
           `,
           variables: {
-            inventoryItemIds: inventoryItemIds,
-            locationId: locationId,
-            availableQuantity: quantity,
+            inventoryAdjustments: inventoryAdjustments,
           },
         },
       });
@@ -790,16 +825,16 @@ class ProductImporter {
         return;
       }
 
-      const updatedLevels = result?.inventoryLevels || [];
-      console.log(`✅ Set inventory quantity to ${quantity} for ${updatedLevels.length} variants`);
+      const updatedAdjustments = result?.inventoryAdjustments || [];
+      console.log(`✅ Set inventory quantity to ${quantity} for ${updatedAdjustments.length} variants`);
 
       // Show inventory update results
-      updatedLevels.slice(0, 3).forEach((level, i) => {
-        console.log(`   ✅ Variant ${i + 1}: ${quantity} units`);
+      updatedAdjustments.slice(0, 3).forEach((adjustment, i) => {
+        console.log(`   ✅ Variant ${i + 1}: ${adjustment.availableQuantity} units`);
       });
 
-      if (updatedLevels.length > 3) {
-        console.log(`   ... and ${updatedLevels.length - 3} more variants`);
+      if (updatedAdjustments.length > 3) {
+        console.log(`   ... and ${updatedAdjustments.length - 3} more variants`);
       }
 
     } catch (error) {
