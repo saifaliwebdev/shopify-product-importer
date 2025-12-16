@@ -797,16 +797,19 @@ class ProductImporter {
             reason: "initial_import",
             quantities: $quantities
           }) {
-            inventoryLevels {
-              id
-              availableQuantity
-              item {
+            inventoryAdjustmentGroup {
+              inventoryAdjustments {
                 id
+                availableQuantity
+                inventoryItem {
+                  id
+                }
               }
             }
             userErrors {
               field
               message
+              code
             }
           }
         }
@@ -814,21 +817,25 @@ class ProductImporter {
 
       const result = response.body?.data?.inventorySetQuantities;
 
+      // Log the full response for debugging
+      console.log("📦 InventorySetQuantities response:", JSON.stringify(result, null, 2));
+
       if (result?.userErrors?.length > 0) {
-        console.error("❌ Inventory update errors:", result.userErrors);
+        console.error("❌ Inventory update errors:", JSON.stringify(result.userErrors, null, 2));
         return;
       }
 
-      const updatedLevels = result?.inventoryLevels || [];
-      console.log(`✅ Set inventory quantity to ${quantity} for ${updatedLevels.length} variants`);
+      // Use the correct field path based on current Shopify schema
+      const inventoryAdjustmentResults = result?.inventoryAdjustmentGroup?.inventoryAdjustments || [];
+      console.log(`✅ Set inventory quantity to ${quantity} for ${inventoryAdjustmentResults.length} variants`);
 
       // Show inventory update results
-      updatedLevels.slice(0, 3).forEach((level, i) => {
-        console.log(`   ✅ Variant ${i + 1}: ${level.availableQuantity} units`);
+      inventoryAdjustmentResults.slice(0, 3).forEach((adjustment, i) => {
+        console.log(`   ✅ Variant ${i + 1}: ${adjustment.availableQuantity} units`);
       });
 
-      if (updatedLevels.length > 3) {
-        console.log(`   ... and ${updatedLevels.length - 3} more variants`);
+      if (inventoryAdjustmentResults.length > 3) {
+        console.log(`   ... and ${inventoryAdjustmentResults.length - 3} more variants`);
       }
 
     } catch (error) {
