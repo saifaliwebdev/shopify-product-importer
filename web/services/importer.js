@@ -791,13 +791,14 @@ class ProductImporter {
 
       console.log(`📦 Applying ${inventoryAdjustments.length} inventory adjustments`);
 
-      // Set inventory quantities using inventorySetQuantities with adjustments
+      // Set inventory quantities using correct inventorySetQuantities mutation
       const response = await client.query({
         data: {
           query: `
-            mutation inventorySetQuantities($inventoryAdjustments: [InventoryAdjustmentInput!]!) {
+            mutation inventorySetQuantities($quantities: [InventorySetQuantitiesInput!]!) {
               inventorySetQuantities(input: {
-                inventoryAdjustments: $inventoryAdjustments
+                reason: "initial_import",
+                quantities: $quantities
               }) {
                 inventoryAdjustments {
                   inventoryItem {
@@ -813,7 +814,7 @@ class ProductImporter {
             }
           `,
           variables: {
-            inventoryAdjustments: inventoryAdjustments,
+            quantities: inventoryAdjustments,
           },
         },
       });
