@@ -85,10 +85,14 @@ class ProductImporter {
         title: finalTitle,
         descriptionHtml: productData.description,
         vendor: finalVendor,
-        productType: productData.product_type || "",
         tags: productData.tags || [],
         status: productStatus,
       };
+
+      // Add productType only if it's not empty
+      if (productData.product_type && productData.product_type.trim() !== "") {
+        productInput.productType = productData.product_type.trim();
+      }
 
       // Add product options if they exist
       if (productData.options && productData.options.length > 0) {
