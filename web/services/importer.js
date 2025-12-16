@@ -92,14 +92,15 @@ class ProductImporter {
 
       // Add product options if they exist
       if (productData.options && productData.options.length > 0) {
-        productInput.productOptions = productData.options.map(opt => ({
+        productInput.options = productData.options.map(opt => ({
           name: opt.name,
-          values: opt.values.map(v => ({ name: v }))
+          values: opt.values
         }));
-        console.log("📦 Product options:", JSON.stringify(productInput.productOptions, null, 2));
+        console.log("📦 Product options:", JSON.stringify(productInput.options, null, 2));
       }
 
       console.log("📦 Creating product:", finalTitle);
+      console.log("📦 ProductCreate input:", JSON.stringify(productInput, null, 2));
 
       const createResponse = await client.request(`
         mutation productCreate($input: ProductInput!) {
@@ -131,6 +132,8 @@ class ProductImporter {
           }
         }
       `, { input: productInput });
+
+      console.log("📦 ProductCreate response:", JSON.stringify(createResponse.body?.data?.productCreate, null, 2));
 
       const result = createResponse.body?.data?.productCreate;
 
