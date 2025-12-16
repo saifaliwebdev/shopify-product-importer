@@ -773,8 +773,8 @@ class ProductImporter {
             inventoryAdjustments.push({
               inventoryItemId: inventoryItemId,
               locationId: locationId,
-              availableQuantity: quantity,
-              reason: "initial_import"
+              availableQuantity: quantity
+              // Note: reason field is only at top-level InventorySetQuantitiesInput
             });
           } else {
             console.error(`❌ Could not get inventory item for variant: ${variant.title}`);
