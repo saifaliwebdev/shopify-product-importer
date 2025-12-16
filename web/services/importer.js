@@ -12,8 +12,8 @@ class ProductImporter {
     if (this.locationId) return this.locationId;
     
     try {
-      const response = await client.request({
-        data: `{
+      const response = await client.request(`
+        query {
           locations(first: 1) {
             edges {
               node {
@@ -21,8 +21,8 @@ class ProductImporter {
               }
             }
           }
-        }`,
-      });
+        }
+      `);
       
       this.locationId = response.body?.data?.locations?.edges?.[0]?.node?.id;
       console.log("📍 Location ID:", this.locationId);
@@ -49,13 +49,13 @@ class ProductImporter {
     try {
       const client = new shopify.api.clients.Graphql({ session });
       
-      const storeResponse = await client.request({
-        data: `{
+      const storeResponse = await client.request(`
+        query {
           shop {
             currencyCode
           }
-        }`,
-      });
+        }
+      `);
       const storeCurrency = storeResponse.body?.data?.shop?.currencyCode || 'USD';
       console.log("🏪 Store currency:", storeCurrency);
 
@@ -101,41 +101,36 @@ class ProductImporter {
 
       console.log("📦 Creating product:", finalTitle);
 
-      const createResponse = await client.request({
-        data: {
-          query: `
-            mutation productCreate($input: ProductInput!) {
-              productCreate(input: $input) {
-                product {
-                  id
-                  title
-                  handle
-                  status
-                  options {
+      const createResponse = await client.request(`
+        mutation productCreate($input: ProductInput!) {
+          productCreate(input: $input) {
+            product {
+              id
+              title
+              handle
+              status
+              options {
+                id
+                name
+                values
+              }
+              variants(first: 1) {
+                edges {
+                  node {
                     id
-                    name
-                    values
+                    title
+                    price
                   }
-                  variants(first: 1) {
-                    edges {
-                      node {
-                        id
-                        title
-                        price
-                      }
-                    }
-                  }
-                }
-                userErrors {
-                  field
-                  message
                 }
               }
             }
-          `,
-          variables: { input: productInput },
-        },
-      });
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, { input: productInput });
 
       const result = createResponse.body?.data?.productCreate;
 
@@ -357,33 +352,28 @@ class ProductImporter {
     console.log("📦 First variant:", JSON.stringify(variantInputs[0], null, 2));
 
     try {
-      const response = await client.request({
-        data: {
-          query: `
-            mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-              productVariantsBulkCreate(productId: $productId, variants: $variants) {
-                productVariants {
-                  id
-                  title
-                  price
-                  selectedOptions {
-                    name
-                    value
-                  }
-                }
-                userErrors {
-                  field
-                  message
-                  code
-                }
+      const response = await client.request(`
+        mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            productVariants {
+              id
+              title
+              price
+              selectedOptions {
+                name
+                value
               }
             }
-          `,
-          variables: {
-            productId: productId,
-            variants: variantInputs,
-          },
-        },
+            userErrors {
+              field
+              message
+              code
+            }
+          }
+        }
+      `, {
+        productId: productId,
+        variants: variantInputs,
       });
 
       const result = response.body?.data?.productVariantsBulkCreate;
@@ -432,30 +422,25 @@ class ProductImporter {
 
   async getExistingVariants(client, productId) {
     try {
-      const response = await client.request({
-        data: {
-          query: `
-            query getVariants($id: ID!) {
-              product(id: $id) {
-                variants(first: 100) {
-                  edges {
-                    node {
-                      id
-                      title
-                      price
-                      selectedOptions {
-                        name
-                        value
-                      }
-                    }
+      const response = await client.request(`
+        query getVariants($id: ID!) {
+          product(id: $id) {
+            variants(first: 100) {
+              edges {
+                node {
+                  id
+                  title
+                  price
+                  selectedOptions {
+                    name
+                    value
                   }
                 }
               }
             }
-          `,
-          variables: { id: productId },
-        },
-      });
+          }
+        }
+      `, { id: productId });
 
       const variants = response.body?.data?.product?.variants?.edges || [];
       return variants.map(v => v.node);
@@ -482,28 +467,23 @@ class ProductImporter {
 
   async updateExistingVariants(client, productId, variantsToUpdate) {
     try {
-      const response = await client.request({
-        data: {
-          query: `
-            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-                productVariants {
-                  id
-                  price
-                  title
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
+      const response = await client.request(`
+        mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants {
+              id
+              price
+              title
             }
-          `,
-          variables: {
-            productId: productId,
-            variants: variantsToUpdate,
-          },
-        },
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, {
+        productId: productId,
+        variants: variantsToUpdate,
       });
 
       const result = response.body?.data?.productVariantsBulkUpdate;
@@ -530,31 +510,26 @@ class ProductImporter {
 
     try {
       // Use productVariantsBulkUpdate instead of productVariantUpdate
-      const response = await client.request({
-        data: {
-          query: `
-            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-                productVariants {
-                  id
-                  price
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
+      const response = await client.request(`
+        mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants {
+              id
+              price
             }
-          `,
-          variables: {
-            productId: productId,
-            variants: [{
-              id: variantId,
-              price: String(price),
-              compareAtPrice: compareAtPrice ? String(compareAtPrice) : null,
-            }],
-          },
-        },
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, {
+        productId: productId,
+        variants: [{
+          id: variantId,
+          price: String(price),
+          compareAtPrice: compareAtPrice ? String(compareAtPrice) : null,
+        }],
       });
 
       const result = response.body?.data?.productVariantsBulkUpdate;
@@ -574,25 +549,20 @@ class ProductImporter {
 
   async deleteDefaultVariant(client, productId) {
     try {
-      const response = await client.request({
-        data: {
-          query: `
-            query getVariants($id: ID!) {
-              product(id: $id) {
-                variants(first: 100) {
-                  edges {
-                    node {
-                      id
-                      title
-                    }
-                  }
+      const response = await client.request(`
+        query getVariants($id: ID!) {
+          product(id: $id) {
+            variants(first: 100) {
+              edges {
+                node {
+                  id
+                  title
                 }
               }
             }
-          `,
-          variables: { id: productId },
-        },
-      });
+          }
+        }
+      `, { id: productId });
 
       const variants = response.body?.data?.product?.variants?.edges || [];
       const defaultVariant = variants.find(v => v.node.title === "Default Title");
@@ -600,22 +570,17 @@ class ProductImporter {
       if (defaultVariant && variants.length > 1) {
         console.log("🗑️ Deleting default variant...");
         
-        await client.request({
-          data: {
-            query: `
-              mutation deleteVariant($id: ID!) {
-                productVariantDelete(id: $id) {
-                  deletedProductVariantId
-                  userErrors {
-                    field
-                    message
-                  }
-                }
+        await client.request(`
+          mutation deleteVariant($id: ID!) {
+            productVariantDelete(id: $id) {
+              deletedProductVariantId
+              userErrors {
+                field
+                message
               }
-            `,
-            variables: { id: defaultVariant.node.id },
-          },
-        });
+            }
+          }
+        `, { id: defaultVariant.node.id });
         
         console.log("✅ Default variant deleted");
       }
@@ -632,26 +597,21 @@ class ProductImporter {
         mediaContentType: "IMAGE",
       }));
 
-      const response = await client.request({
-        data: {
-          query: `
-            mutation productCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
-              productCreateMedia(productId: $productId, media: $media) {
-                media {
-                  ... on MediaImage {
-                    id
-                  }
-                }
-                mediaUserErrors {
-                  field
-                  message
-                }
+      const response = await client.request(`
+        mutation productCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media {
+              ... on MediaImage {
+                id
               }
             }
-          `,
-          variables: { productId, media },
-        },
-      });
+            mediaUserErrors {
+              field
+              message
+            }
+          }
+        }
+      `, { productId, media });
 
       const result = response.body?.data?.productCreateMedia;
       
@@ -669,27 +629,22 @@ class ProductImporter {
     console.log("📁 Adding to collection:", collectionId);
     
     try {
-      const response = await client.request({
-        data: {
-          query: `
-            mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
-              collectionAddProducts(id: $id, productIds: $productIds) {
-                collection {
-                  id
-                  title
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
+      const response = await client.request(`
+        mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
+          collectionAddProducts(id: $id, productIds: $productIds) {
+            collection {
+              id
+              title
             }
-          `,
-          variables: {
-            id: collectionId,
-            productIds: [productId],
-          },
-        },
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, {
+        id: collectionId,
+        productIds: [productId],
       });
 
       const result = response.body?.data?.collectionAddProducts;
@@ -752,20 +707,15 @@ class ProductImporter {
       
       for (const variant of variants) {
         try {
-          const response = await client.request({
-            data: {
-              query: `
-                query getVariantInventoryItem($id: ID!) {
-                  productVariant(id: $id) {
-                    inventoryItem {
-                      id
-                    }
-                  }
+          const response = await client.request(`
+            query getVariantInventoryItem($id: ID!) {
+              productVariant(id: $id) {
+                inventoryItem {
+                  id
                 }
-              `,
-              variables: { id: variant.id },
-            },
-          });
+              }
+            }
+          `, { id: variant.id });
 
           const inventoryItemId = response.body?.data?.productVariant?.inventoryItem?.id;
           
@@ -792,34 +742,27 @@ class ProductImporter {
       console.log(`📦 Applying ${inventoryAdjustments.length} inventory adjustments`);
 
       // Set inventory quantities using correct inventorySetQuantities mutation
-      const response = await client.request({
-        data: {
-          query: `
-            mutation inventorySetQuantities($quantities: [InventoryQuantityInput!]!) {
-              inventorySetQuantities(input: {
-                name: "initial_import",
-                reason: "initial_import",
-                quantities: $quantities
-              }) {
-                inventoryLevels {
-                  id
-                  availableQuantity
-                  item {
-                    id
-                  }
-                }
-                userErrors {
-                  field
-                  message
-                }
+      const response = await client.request(`
+        mutation inventorySetQuantities($quantities: [InventoryQuantityInput!]!) {
+          inventorySetQuantities(input: {
+            name: "initial_import",
+            reason: "initial_import",
+            quantities: $quantities
+          }) {
+            inventoryLevels {
+              id
+              availableQuantity
+              item {
+                id
               }
             }
-          `,
-          variables: {
-            quantities: inventoryAdjustments,
-          },
-        },
-      });
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, { quantities: inventoryAdjustments });
 
       const result = response.body?.data?.inventorySetQuantities;
 
