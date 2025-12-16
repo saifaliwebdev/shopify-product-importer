@@ -801,11 +801,12 @@ class ProductImporter {
                 reason: "initial_import",
                 quantities: $quantities
               }) {
-                inventoryAdjustments {
-                  inventoryItem {
+                inventoryLevels {
+                  id
+                  availableQuantity
+                  item {
                     id
                   }
-                  availableQuantity
                 }
                 userErrors {
                   field
@@ -827,16 +828,16 @@ class ProductImporter {
         return;
       }
 
-      const updatedAdjustments = result?.inventoryAdjustments || [];
-      console.log(`✅ Set inventory quantity to ${quantity} for ${updatedAdjustments.length} variants`);
+      const updatedLevels = result?.inventoryLevels || [];
+      console.log(`✅ Set inventory quantity to ${quantity} for ${updatedLevels.length} variants`);
 
       // Show inventory update results
-      updatedAdjustments.slice(0, 3).forEach((adjustment, i) => {
-        console.log(`   ✅ Variant ${i + 1}: ${adjustment.availableQuantity} units`);
+      updatedLevels.slice(0, 3).forEach((level, i) => {
+        console.log(`   ✅ Variant ${i + 1}: ${level.availableQuantity} units`);
       });
 
-      if (updatedAdjustments.length > 3) {
-        console.log(`   ... and ${updatedAdjustments.length - 3} more variants`);
+      if (updatedLevels.length > 3) {
+        console.log(`   ... and ${updatedLevels.length - 3} more variants`);
       }
 
     } catch (error) {
