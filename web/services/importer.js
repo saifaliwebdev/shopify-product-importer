@@ -797,6 +797,7 @@ class ProductImporter {
           query: `
             mutation inventorySetQuantities($quantities: [InventorySetQuantitiesInput!]!) {
               inventorySetQuantities(input: {
+                name: "initial_import",
                 reason: "initial_import",
                 quantities: $quantities
               }) {
