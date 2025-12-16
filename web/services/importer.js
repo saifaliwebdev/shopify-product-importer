@@ -795,7 +795,7 @@ class ProductImporter {
       const response = await client.query({
         data: {
           query: `
-            mutation inventorySetQuantities($quantities: [InventorySetQuantitiesInput!]!) {
+            mutation inventorySetQuantities($quantities: [InventoryQuantityInput!]!) {
               inventorySetQuantities(input: {
                 name: "initial_import",
                 reason: "initial_import",
