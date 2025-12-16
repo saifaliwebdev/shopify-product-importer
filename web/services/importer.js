@@ -12,7 +12,7 @@ class ProductImporter {
     if (this.locationId) return this.locationId;
     
     try {
-      const response = await client.query({
+      const response = await client.request({
         data: `{
           locations(first: 1) {
             edges {
@@ -49,7 +49,7 @@ class ProductImporter {
     try {
       const client = new shopify.api.clients.Graphql({ session });
       
-      const storeResponse = await client.query({
+      const storeResponse = await client.request({
         data: `{
           shop {
             currencyCode
@@ -101,7 +101,7 @@ class ProductImporter {
 
       console.log("📦 Creating product:", finalTitle);
 
-      const createResponse = await client.query({
+      const createResponse = await client.request({
         data: {
           query: `
             mutation productCreate($input: ProductInput!) {
@@ -357,7 +357,7 @@ class ProductImporter {
     console.log("📦 First variant:", JSON.stringify(variantInputs[0], null, 2));
 
     try {
-      const response = await client.query({
+      const response = await client.request({
         data: {
           query: `
             mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -432,7 +432,7 @@ class ProductImporter {
 
   async getExistingVariants(client, productId) {
     try {
-      const response = await client.query({
+      const response = await client.request({
         data: {
           query: `
             query getVariants($id: ID!) {
@@ -482,7 +482,7 @@ class ProductImporter {
 
   async updateExistingVariants(client, productId, variantsToUpdate) {
     try {
-      const response = await client.query({
+      const response = await client.request({
         data: {
           query: `
             mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -530,7 +530,7 @@ class ProductImporter {
 
     try {
       // Use productVariantsBulkUpdate instead of productVariantUpdate
-      const response = await client.query({
+      const response = await client.request({
         data: {
           query: `
             mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -574,7 +574,7 @@ class ProductImporter {
 
   async deleteDefaultVariant(client, productId) {
     try {
-      const response = await client.query({
+      const response = await client.request({
         data: {
           query: `
             query getVariants($id: ID!) {
@@ -600,7 +600,7 @@ class ProductImporter {
       if (defaultVariant && variants.length > 1) {
         console.log("🗑️ Deleting default variant...");
         
-        await client.query({
+        await client.request({
           data: {
             query: `
               mutation deleteVariant($id: ID!) {
@@ -632,7 +632,7 @@ class ProductImporter {
         mediaContentType: "IMAGE",
       }));
 
-      const response = await client.query({
+      const response = await client.request({
         data: {
           query: `
             mutation productCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
@@ -669,7 +669,7 @@ class ProductImporter {
     console.log("📁 Adding to collection:", collectionId);
     
     try {
-      const response = await client.query({
+      const response = await client.request({
         data: {
           query: `
             mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
@@ -752,7 +752,7 @@ class ProductImporter {
       
       for (const variant of variants) {
         try {
-          const response = await client.query({
+          const response = await client.request({
             data: {
               query: `
                 query getVariantInventoryItem($id: ID!) {
@@ -792,7 +792,7 @@ class ProductImporter {
       console.log(`📦 Applying ${inventoryAdjustments.length} inventory adjustments`);
 
       // Set inventory quantities using correct inventorySetQuantities mutation
-      const response = await client.query({
+      const response = await client.request({
         data: {
           query: `
             mutation inventorySetQuantities($quantities: [InventoryQuantityInput!]!) {
