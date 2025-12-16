@@ -94,9 +94,10 @@ class ProductImporter {
       if (productData.options && productData.options.length > 0) {
         productInput.options = productData.options.map(opt => ({
           name: opt.name,
-          values: opt.values
+          values: opt.values.map(v => String(v).trim()) // Ensure clean string values
         }));
         console.log("📦 Product options:", JSON.stringify(productInput.options, null, 2));
+        console.log("📦 Product options values check:", productInput.options.map(opt => opt.values.every(v => typeof v === 'string' && v.length > 0)));
       }
 
       console.log("📦 Creating product:", finalTitle);
