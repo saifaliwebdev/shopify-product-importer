@@ -257,8 +257,15 @@ class ProductImporter {
     const optionNames = createdOptions.map(o => o.name);
     console.log("📦 Option names:", optionNames);
 
+    // Fetch existing variants to avoid duplicates
+    console.log("🔍 Checking existing variants...");
+    const existingVariants = await this.getExistingVariants(client, productId);
+    console.log(`📦 Found ${existingVariants.length} existing variants`);
+
     // Prepare variant inputs - ONLY valid fields
     const variantInputs = [];
+    const seenCombinations = new Set();
+    const variantsToUpdate = [];
     
     for (const variant of variants) {
       const optionValues = [];
@@ -288,26 +295,65 @@ class ProductImporter {
       // Skip if no option values
       if (optionValues.length === 0) continue;
 
-      // Create variant input (inventoryManagement not allowed in bulk create)
-      const variantInput = {
-        optionValues: optionValues,
-        price: String(variant.price),
-      };
-
-      // Add compare at price if exists
-      if (variant.compare_at_price) {
-        variantInput.compareAtPrice = String(variant.compare_at_price);
+      // Create a unique key for this combination
+      const combinationKey = optionValues.map(opt => `${opt.optionName}:${opt.name}`).join('|');
+      
+      if (seenCombinations.has(combinationKey)) {
+        console.log(`⚠️ Skipping duplicate variant: ${combinationKey}`);
+        continue;
       }
+      seenCombinations.add(combinationKey);
 
-      variantInputs.push(variantInput);
+      // Check if this variant already exists
+      const existingVariant = existingVariants.find(v => 
+        this.compareVariantOptions(v.selectedOptions, optionValues)
+      );
+
+      if (existingVariant) {
+        // Update existing variant
+        console.log(`🔄 Updating existing variant: ${combinationKey}`);
+        variantsToUpdate.push({
+          id: existingVariant.id,
+          price: String(variant.price),
+          compareAtPrice: variant.compare_at_price ? String(variant.compare_at_price) : null,
+        });
+      } else {
+        // Create new variant
+        console.log(`➕ Creating new variant: ${combinationKey}`);
+        const variantInput = {
+          optionValues: optionValues,
+          price: String(variant.price),
+        };
+
+        // Add compare at price if exists
+        if (variant.compare_at_price) {
+          variantInput.compareAtPrice = String(variant.compare_at_price);
+        }
+
+        variantInputs.push(variantInput);
+      }
     }
 
+    // Update existing variants
+    if (variantsToUpdate.length > 0) {
+      console.log(`🔄 Updating ${variantsToUpdate.length} existing variants...`);
+      const updatedVariants = await this.updateExistingVariants(client, productId, variantsToUpdate);
+      
+      // Also enable inventory tracking and set quantities for updated variants
+      if (inventoryQuantity > 0 && updatedVariants && updatedVariants.length > 0) {
+        console.log(`📦 Enabling inventory tracking for ${updatedVariants.length} updated variants`);
+        await this.enableInventoryTracking(client, updatedVariants);
+        await this.setInventoryQuantities(client, updatedVariants, inventoryQuantity);
+      }
+    }
+
+    // Create new variants
     if (variantInputs.length === 0) {
-      console.log("⚠️ No valid variants to create");
+      console.log("⚠️ No new variants to create");
       return;
     }
 
-    console.log("📦 Creating", variantInputs.length, "variants");
+    console.log(`➕ Creating ${variantInputs.length} new variants`);
     console.log("📦 First variant:", JSON.stringify(variantInputs[0], null, 2));
 
     try {
@@ -344,11 +390,19 @@ class ProductImporter {
       
       if (result?.userErrors?.length > 0) {
         console.error("❌ Variant creation errors:", JSON.stringify(result.userErrors, null, 2));
+        
+        // Log details about each error
+        result.userErrors.forEach(error => {
+          if (error.code === 'VARIANT_ALREADY_EXISTS_CHANGE_OPTION_VALUE') {
+            console.error(`❌ Duplicate variant detected: ${error.message}`);
+          }
+        });
+        
         throw new Error(result.userErrors.map(e => e.message).join(", "));
       }
 
       const createdVariants = result?.productVariants || [];
-      console.log(`✅ Created ${createdVariants.length} variants successfully!`);
+      console.log(`✅ Created ${createdVariants.length} new variants successfully!`);
 
       // Show first 3 variants
       createdVariants.slice(0, 3).forEach((v, i) => {
