@@ -93,11 +93,29 @@ class ProductImporter {
       // Add product options if they exist
       if (productData.options && productData.options.length > 0) {
         productInput.options = productData.options.map(opt => ({
-          name: opt.name,
-          values: opt.values.map(v => String(v).trim()) // Ensure clean string values
-        }));
+          name: String(opt.name).trim(),
+          values: opt.values
+            .map(v => String(v).trim())
+            .filter(v => v.length > 0) // Remove empty strings
+            .filter((v, i, a) => a.indexOf(v) === i) // Remove duplicates
+        })).filter(opt => opt.values.length > 0); // Remove options with no values
+
+        // Final validation
+        if (productInput.options.length === 0) {
+          delete productInput.options;
+        }
+
         console.log("📦 Product options:", JSON.stringify(productInput.options, null, 2));
-        console.log("📦 Product options values check:", productInput.options.map(opt => opt.values.every(v => typeof v === 'string' && v.length > 0)));
+        console.log("📦 Product options validation:", {
+          hasOptions: !!productInput.options,
+          optionCount: productInput.options ? productInput.options.length : 0,
+          allValid: productInput.options ? productInput.options.every(opt =>
+            typeof opt.name === 'string' &&
+            opt.name.length > 0 &&
+            Array.isArray(opt.values) &&
+            opt.values.every(v => typeof v === 'string' && v.length > 0)
+          ) : true
+        });
       }
 
       console.log("📦 Creating product:", finalTitle);
