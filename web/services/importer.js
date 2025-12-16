@@ -83,15 +83,23 @@ class ProductImporter {
       // Step 1: Create product with options
       const productInput = {
         title: finalTitle,
-        descriptionHtml: productData.description,
-        vendor: finalVendor,
-        tags: productData.tags || [],
+        descriptionHtml: productData.description
+          ?.replace(/<p><!----><\/p>/g, '') // Remove empty paragraph tags
+          ?.replace(/<p>\s*<\/p>/g, '') // Remove whitespace-only paragraphs
+          ?.trim() || '<p>Product description</p>',
+        vendor: finalVendor || 'Imported Product',
+        tags: Array.isArray(productData.tags) && productData.tags.length > 0
+          ? productData.tags.map(t => String(t).trim()).filter(t => t.length > 0)
+          : [],
         status: productStatus,
       };
 
       // Add productType only if it's not empty
       if (productData.product_type && productData.product_type.trim() !== "") {
         productInput.productType = productData.product_type.trim();
+      } else {
+        // Shopify requires productType for some stores, use default if missing
+        productInput.productType = 'General';
       }
 
       // Add product options if they exist
