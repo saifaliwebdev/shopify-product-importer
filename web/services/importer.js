@@ -849,9 +849,42 @@ class ProductImporter {
     try {
       console.log(`📦 Enabling inventory tracking for ${variants.length} variants`);
       
-      // Note: inventoryManagement field is no longer supported in Shopify schema
-      // Inventory tracking is automatically enabled when using inventorySetQuantities
-      console.log("📦 Inventory tracking will be enabled via inventorySetQuantities mutation");
+      // Use productVariantUpdate to enable inventory tracking for each variant
+      const response = await client.query({
+        data: {
+          query: `
+            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                productVariants {
+                  id
+                  inventoryManagement
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `,
+          variables: {
+            productId: variants[0]?.id?.split('/').slice(0, -1).join('/'), // Extract product ID from variant ID
+            variants: variants.map(v => ({
+              id: v.id,
+              inventoryManagement: "SHOPIFY"
+            }))
+          },
+        },
+      });
+
+      const result = response.body?.data?.productVariantsBulkUpdate;
+
+      if (result?.userErrors?.length > 0) {
+        console.error("❌ Inventory tracking enable errors:", result.userErrors);
+        return;
+      }
+
+      const updatedVariants = result?.productVariants || [];
+      console.log(`✅ Enabled inventory tracking for ${updatedVariants.length} variants`);
 
     } catch (error) {
       console.error("❌ Failed to enable inventory tracking:", error.message);
