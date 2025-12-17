@@ -1,12 +1,3 @@
-// import shopify from "../shopify.js";
-// import ImageHandler from "./imageHandler.js";
-// import Import from "../models/Import.js";
-
-// class ProductImporter {
-//   constructor() {
-//     this.imageHandler = new ImageHandler();
-//     this.locationId = null;
-//   }
 
 //   async getLocationId(client) {
 //     if (this.locationId) return this.locationId;
@@ -1042,7 +1033,30 @@ class ProductImporter {
     }
   }
 
-  // ... (rest of your variant, inventory, image, and collection methods remain unchanged)
+  applyPriceMarkup(variants, markup, type) {
+    return variants.map(variant => {
+      let price = parseFloat(variant.price) || 0;
+      let comparePrice = variant.compare_at_price ? parseFloat(variant.compare_at_price) : null;
+
+      if (markup && markup !== 0) {
+        if (type === "percentage") {
+          price = price * (1 + markup / 100);
+          if (comparePrice) comparePrice = comparePrice * (1 + markup / 100);
+        } else {
+          price = price + parseFloat(markup);
+          if (comparePrice) comparePrice = comparePrice + parseFloat(markup);
+        }
+      }
+
+      return {
+        ...variant,
+        price: price.toFixed(2),
+        compare_at_price: comparePrice ? comparePrice.toFixed(2) : null,
+      };
+    });
+  }
+
+  // ... (rest of your variant, inventory, image, and collection methods)
 }
 
 export default new ProductImporter();
