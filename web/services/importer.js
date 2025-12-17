@@ -103,7 +103,7 @@ class ProductImporter {
           ?.replace(/<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix duodecuple <br> tags
           ?.replace(/<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix tredecuple <br> tags
           ?.replace(/<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix quattuordecuple <br> tags
-          ?.replace(/<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix quindecuple <br> tags
+          ?.replace(/<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix quindecuple <br> tags
           ?.trim() || '<p>Product description</p>',
         vendor: finalVendor || 'Imported Product',
         status: productStatus, // This will be "DRAFT" or "ACTIVE" enum
@@ -166,7 +166,6 @@ class ProductImporter {
             userErrors {
               field
               message
-              code
             }
           }
         }
@@ -176,11 +175,9 @@ class ProductImporter {
 
       if (result?.userErrors?.length > 0) {
         console.error("❌ Product creation errors:", JSON.stringify(result.userErrors, null, 2));
-        // Log specific details for debugging
+        // Log specific details for debugging - FIXED: Removed error.code reference
         result.userErrors.forEach(error => {
-          if (error.code === 'INVALID_VALUE') {
-            console.error(`❌ Invalid value in field: ${error.field.join('.')}`);
-          }
+          console.error(`❌ Error in field: ${error.field.join('.')} - ${error.message}`);
         });
         throw new Error(result.userErrors.map(e => e.message).join(", "));
       }
@@ -413,7 +410,6 @@ class ProductImporter {
             userErrors {
               field
               message
-              code
             }
           }
         }
@@ -427,11 +423,9 @@ class ProductImporter {
       if (result?.userErrors?.length > 0) {
         console.error("❌ Variant creation errors:", JSON.stringify(result.userErrors, null, 2));
         
-        // Log details about each error
+        // Log details about each error - FIXED: Removed error.code reference
         result.userErrors.forEach(error => {
-          if (error.code === 'VARIANT_ALREADY_EXISTS_CHANGE_OPTION_VALUE') {
-            console.error(`❌ Duplicate variant detected: ${error.message}`);
-          }
+          console.error(`❌ Error in field: ${error.field.join('.')} - ${error.message}`);
         });
         
         throw new Error(result.userErrors.map(e => e.message).join(", "));
@@ -809,7 +803,6 @@ class ProductImporter {
             userErrors {
               field
               message
-              code
             }
           }
         }
