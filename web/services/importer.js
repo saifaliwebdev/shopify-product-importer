@@ -90,7 +90,16 @@ class ProductImporter {
           ?.replace(/style="[^"]*"/g, '') // Remove inline styles
           ?.replace(/<p><!----><\/p>/g, '') // Remove empty paragraph tags
           ?.replace(/<p>\s*<\/p>/g, '') // Remove whitespace-only paragraphs
-          ?.replace(/<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix double <br> tags
+          // Remove list elements and convert to paragraphs
+          ?.replace(/<ul[^>]*>/gi, '')
+          ?.replace(/<\/ul>/gi, '')
+          ?.replace(/<li[^>]*>/gi, '<p>')
+          ?.replace(/<\/li>/gi, '</p>')
+          // Remove strong tags but keep content
+          ?.replace(/<strong[^>]*>/gi, '')
+          ?.replace(/<\/strong>/gi, '')
+          // Simplify multiple line breaks
+          ?.replace(/(<br\s*\/?>\s*)+/g, '<br>')
           ?.replace(/<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix triple <br> tags
           ?.replace(/<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix quadruple <br> tags
           ?.replace(/<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix quintuple <br> tags
@@ -177,7 +186,7 @@ class ProductImporter {
         console.error("❌ Product creation errors:", JSON.stringify(result.userErrors, null, 2));
         // Log specific details for debugging - FIXED: Removed error.code reference
         result.userErrors.forEach(error => {
-          console.error(`❌ Error in field: ${error.field.join('.')} - ${error.message}`);
+          console.error(`❌ Error in field: ${error.field?.join('.') || 'unknown_field'} - ${error.message}`);
         });
         throw new Error(result.userErrors.map(e => e.message).join(", "));
       }
