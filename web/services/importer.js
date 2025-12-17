@@ -72,6 +72,7 @@ class ProductImporter {
 
       console.log("📦 Variants count:", variants.length);
 
+      // Convert string status to GraphQL Enum
       const productStatus = status === "active" ? "ACTIVE" : "DRAFT";
 
       let finalTitle = productData.title;
@@ -84,6 +85,9 @@ class ProductImporter {
       const productInput = {
         title: finalTitle,
         descriptionHtml: productData.description
+          ?.replace(/<table[^>]*>[\s\S]*?<\/table>/gi, '') // Remove all table elements
+          ?.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove style tags
+          ?.replace(/style="[^"]*"/g, '') // Remove inline styles
           ?.replace(/<p><!----><\/p>/g, '') // Remove empty paragraph tags
           ?.replace(/<p>\s*<\/p>/g, '') // Remove whitespace-only paragraphs
           ?.replace(/<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix double <br> tags
@@ -102,18 +106,13 @@ class ProductImporter {
           ?.replace(/<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>\s*<br\s*\/?>/g, '<br>') // Fix quindecuple <br> tags
           ?.trim() || '<p>Product description</p>',
         vendor: finalVendor || 'Imported Product',
-        tags: Array.isArray(productData.tags) && productData.tags.length > 0
-          ? productData.tags.map(t => String(t).trim()).filter(t => t.length > 0)
-          : [],
-        status: productStatus,
+        status: productStatus, // This will be "DRAFT" or "ACTIVE" enum
+        productType: productData.product_type?.trim() || "General", // Always provide a non-empty productType
       };
 
-      // Add productType only if it's not empty
-      if (productData.product_type && productData.product_type.trim() !== "") {
-        productInput.productType = productData.product_type.trim();
-      } else {
-        // Shopify requires productType for some stores, use default if missing
-        productInput.productType = 'General';
+      // Add tags only if they exist (omit empty arrays)
+      if (Array.isArray(productData.tags) && productData.tags.length > 0) {
+        productInput.tags = productData.tags.map(t => String(t).trim()).filter(t => t.length > 0);
       }
 
       // Add product options if they exist
@@ -131,21 +130,15 @@ class ProductImporter {
           delete productInput.options;
         }
 
-        console.log("📦 Product options:", JSON.stringify(productInput.options, null, 2));
-        console.log("📦 Product options validation:", {
-          hasOptions: !!productInput.options,
-          optionCount: productInput.options ? productInput.options.length : 0,
-          allValid: productInput.options ? productInput.options.every(opt =>
-            typeof opt.name === 'string' &&
-            opt.name.length > 0 &&
-            Array.isArray(opt.values) &&
-            opt.values.every(v => typeof v === 'string' && v.length > 0)
-          ) : true
-        });
+        console.log("🔧 Product options:", JSON.stringify(productInput.options, null, 2));
       }
+      
+      // --- DEBUGGING ---
+      // Log the final productInput to verify against Shopify schema
+      console.log("📦 Final ProductCreate input:", JSON.stringify(productInput, null, 2));
+      // --- END DEBUGGING ---
 
       console.log("📦 Creating product:", finalTitle);
-      console.log("📦 ProductCreate input:", JSON.stringify(productInput, null, 2));
 
       const createResponse = await client.request(`
         mutation productCreate($input: ProductInput!) {
@@ -173,17 +166,22 @@ class ProductImporter {
             userErrors {
               field
               message
+              code
             }
           }
         }
       `, { input: productInput });
 
-      console.log("📦 ProductCreate response:", JSON.stringify(createResponse.body?.data?.productCreate, null, 2));
-
       const result = createResponse.body?.data?.productCreate;
 
       if (result?.userErrors?.length > 0) {
-        console.error("❌ Product creation errors:", result.userErrors);
+        console.error("❌ Product creation errors:", JSON.stringify(result.userErrors, null, 2));
+        // Log specific details for debugging
+        result.userErrors.forEach(error => {
+          if (error.code === 'INVALID_VALUE') {
+            console.error(`❌ Invalid value in field: ${error.field.join('.')}`);
+          }
+        });
         throw new Error(result.userErrors.map(e => e.message).join(", "));
       }
 
@@ -216,21 +214,21 @@ class ProductImporter {
             await this.updateVariantPrice(client, productId, defaultVariantId, variants[0].price, variants[0].compare_at_price);
           }
         } else {
-      // Multiple variants - create them
-      console.log("📦 Creating", variants.length, "variants...");
-      await this.createAllVariants(client, productId, variants, createdOptions, inventoryQuantity);
+          // Multiple variants - create them
+          console.log("📦 Creating", variants.length, "variants...");
+          await this.createAllVariants(client, productId, variants, createdOptions, inventoryQuantity);
         }
       } catch (variantError) {
         console.error("❌ Variant processing failed:", variantError.message);
       }
 
-      // Step 3: Add images
+      // Step 4: Add images
       if (images.length > 0) {
         console.log("📸 Adding", images.length, "images");
         await this.addProductImages(client, productId, images);
       }
 
-      // Step 4: Add to collection
+      // Step 5: Add to collection
       if (collectionId) {
         await this.addToCollection(client, productId, collectionId);
       }
@@ -546,6 +544,8 @@ class ProductImporter {
       updatedVariants.forEach((v, i) => {
         console.log(`   ✅ Updated: ${v.title} - $${v.price}`);
       });
+
+      return updatedVariants;
 
     } catch (error) {
       console.error("❌ Variant update failed:", error.message);
