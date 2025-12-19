@@ -69,6 +69,9 @@ const shopify = shopifyApp({
       "write_products",
       "read_inventory",
       "write_inventory",
+      "read_locations",    // ⚠️ ZAROOR ADD KARO
+      "read_files",
+      "write_files",
     ],
     hostName: hostName,
     hostScheme: "https",
