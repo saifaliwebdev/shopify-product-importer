@@ -62,7 +62,7 @@ export default function Dashboard() {
           onDismiss={() => {}}
         >
           <p>
-            Import products from any Shopify store, AliExpress, Amazon, and more.
+            Import products from any Shopify store.
             Start by pasting a product URL!
           </p>
         </Banner>
@@ -167,8 +167,8 @@ export default function Dashboard() {
                 <BlockStack gap="2">
                   {[
                     { name: "Shopify Stores", status: "✅ Full Support" },
-                    { name: "AliExpress", status: "✅ Full Support" },
-                    { name: "Amazon", status: "✅ Full Support" },
+                    { name: "AliExpress", status: "🔄 Coming Soon" },
+                    { name: "Amazon", status: "🔄 Coming Soon" },
                     { name: "eBay", status: "🔄 Coming Soon" },
                     { name: "Etsy", status: "🔄 Coming Soon" },
                     { name: "Any Website", status: "⚡ Basic Support" },

@@ -135,7 +135,7 @@ export default function ImportSingle() {
                 placeholder="https://example.com/products/product-name"
                 error={urlError}
                 autoComplete="off"
-                helpText="Paste a product URL from Shopify, AliExpress, Amazon, or any online store"
+                helpText="Paste a product URL from Shopify"
                 connectedRight={
                   <Button
                     onClick={handlePreview}
