@@ -133,18 +133,13 @@ class ProductImporter {
           .filter(t => t.length > 0);
       }
 
-      // Add options if exist
+      // Add options if exist (Shopify expects array of option names)
       if (productData.options && productData.options.length > 0) {
         productInput.options = productData.options
-          .map(opt => ({
-            name: String(opt.name).trim(),
-            values: opt.values
-              .map(v => String(v).trim())
-              .filter(v => v.length > 0)
-              .filter((v, i, a) => a.indexOf(v) === i)
-          }))
-          .filter(opt => opt.values.length > 0);
-
+          .map(opt => String(opt.name).trim())
+          .filter(name => name.length > 0)
+          .filter((name, i, a) => a.indexOf(name) === i);
+          
         if (productInput.options.length === 0) {
           delete productInput.options;
         }
@@ -153,7 +148,7 @@ class ProductImporter {
       console.log("📦 Creating product:", finalTitle);
       console.log("📦 Product Input:", JSON.stringify(productInput, null, 2));
 
-      // ✅ FIXED: Create product with correct syntax
+      // Updated for Shopify API v10
       const createResponse = await client.request(`
         mutation productCreate($input: ProductInput!) {
           productCreate(input: $input) {
@@ -163,17 +158,14 @@ class ProductImporter {
               handle
               status
               options {
-                id
                 name
                 values
               }
               variants(first: 1) {
-                edges {
-                  node {
-                    id
-                    title
-                    price
-                  }
+                nodes {
+                  id
+                  title
+                  price
                 }
               }
             }
@@ -184,7 +176,7 @@ class ProductImporter {
           }
         }
       `, {
-        variables: {  // ✅ FIXED: Added variables key
+        variables: {
           input: productInput
         }
       });
