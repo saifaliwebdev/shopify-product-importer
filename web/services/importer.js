@@ -133,15 +133,19 @@ class ProductImporter {
           .filter(t => t.length > 0);
       }
 
-      // Add options if exist (Shopify expects array of option names)
-      if (productData.options && productData.options.length > 0) {
-        productInput.options = productData.options
-          .map(opt => String(opt.name).trim())
-          .filter(name => name.length > 0)
-          .filter((name, i, a) => a.indexOf(name) === i);
-          
-        if (productInput.options.length === 0) {
-          delete productInput.options;
+      // Handle product options (array of option names)
+      if (productData.options?.length > 0) {
+        // Extract unique option names
+        const optionNames = [
+          ...new Set(
+            productData.options
+              .map(opt => String(opt.name).trim())
+              .filter(name => name.length > 0)
+          )
+        ];
+        
+        if (optionNames.length > 0) {
+          productInput.options = optionNames;
         }
       }
 
