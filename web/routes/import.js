@@ -37,7 +37,8 @@ router.post("/single", async (req, res) => {
     console.log("✅ Scraping successful, product:", scrapeResult.product.title);
 
     // 2. Import to Shopify store
-    const importResult = await Importer.importProduct(
+    const importer = new Importer();
+    const importResult = await importer.importProduct(
       session,
       {
         ...scrapeResult.product,
