@@ -133,21 +133,8 @@ class ProductImporter {
           .filter(t => t.length > 0);
       }
 
-      // Handle product options (array of option names)
-      if (productData.options?.length > 0) {
-        // Extract unique option names
-        const optionNames = [
-          ...new Set(
-            productData.options
-              .map(opt => String(opt.name).trim())
-              .filter(name => name.length > 0)
-          )
-        ];
-        
-        if (optionNames.length > 0) {
-          productInput.options = optionNames;
-        }
-      }
+      // Shopify automatically creates options from variants
+      // No need to send options in product creation input
 
       console.log("📦 Creating product:", finalTitle);
       console.log("📦 Product Input:", JSON.stringify(productInput, null, 2));
