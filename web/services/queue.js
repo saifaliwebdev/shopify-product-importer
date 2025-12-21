@@ -15,12 +15,14 @@ const connection = {
 (async () => {
   try {
     const testQueue = new Queue('connection-test', { connection });
-    await testQueue.isReady();
+    await testQueue.waitUntilReady();  // Correct method for connection check
     console.log('✅ Redis connection established');
     await testQueue.close();
   } catch (error) {
     console.error('❌ Redis connection failed:', error.message);
-    console.log('Please ensure Redis is running and check your connection settings');
+    console.log('Please ensure Redis is running and check these settings:');
+    console.log('- REDIS_HOST:', process.env.REDIS_HOST || 'localhost (default)');
+    console.log('- REDIS_PORT:', process.env.REDIS_PORT || '6379 (default)');
     process.exit(1);
   }
 })();
