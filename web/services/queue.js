@@ -4,8 +4,26 @@ import Scraper from '../services/scraper/index.js';
 
 const connection = {
   host: process.env.REDIS_HOST || 'localhost',
-  port: process.env.REDIS_PORT || 6379
+  port: process.env.REDIS_PORT || 6379,
+  retryStrategy: (times) => {
+    console.log(`Redis connection attempt ${times}`);
+    return Math.min(times * 1000, 5000);
+  }
 };
+
+// Verify Redis connection
+(async () => {
+  try {
+    const testQueue = new Queue('connection-test', { connection });
+    await testQueue.isReady();
+    console.log('✅ Redis connection established');
+    await testQueue.close();
+  } catch (error) {
+    console.error('❌ Redis connection failed:', error.message);
+    console.log('Please ensure Redis is running and check your connection settings');
+    process.exit(1);
+  }
+})();
 
 // Export the queue for adding jobs
 export const importQueue = new Queue('import-queue', { connection });
