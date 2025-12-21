@@ -1,59 +1,71 @@
-import { Queue } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import Importer from './importer.js';
 import Scraper from '../services/scraper/index.js';
 
-// Real queue implementation using BullMQ
 const connection = {
   host: process.env.REDIS_HOST || 'localhost',
   port: process.env.REDIS_PORT || 6379
 };
 
+// Export the queue for adding jobs
 export const importQueue = new Queue('import-queue', { connection });
 
-// Process bulk imports
-importQueue.process('bulk-import', async (job) => {
-  const { urls, options, shop, accessToken } = job.data;
-  const importer = new Importer();
-  
-  const session = {
-    shop: shop,
-    accessToken: accessToken
-  };
+// Create worker for bulk imports
+const bulkImportWorker = new Worker('import-queue', async (job) => {
+  if (job.name === 'bulk-import') {
+    const { urls, options, shop, accessToken } = job.data;
+    const importer = new Importer();
+    
+    const session = {
+      shop: shop,
+      accessToken: accessToken
+    };
 
-  const results = await importer.bulkImport(session, urls.map(url => ({ source_url: url })), options);
-  return results;
+    return await importer.bulkImport(session, urls.map(url => ({ source_url: url })), options);
+  }
+}, { connection });
+
+// Create worker for collection imports
+const collectionImportWorker = new Worker('import-queue', async (job) => {
+  if (job.name === 'collection-import') {
+    const { url, limit, options, shop, accessToken } = job.data;
+    const importer = new Importer();
+    const scraper = new Scraper();
+    
+    const session = {
+      shop: shop,
+      accessToken: accessToken
+    };
+
+    // 1. Scrape collection
+    const scrapeResult = await scraper.scrapeCollection(url, limit);
+    
+    if (!scrapeResult.success) {
+      throw new Error(`Collection scrape failed: ${scrapeResult.error}`);
+    }
+
+    // 2. Import all products
+    const results = await importer.bulkImport(
+      session, 
+      scrapeResult.products.map(p => ({
+        ...p,
+        source_platform: scrapeResult.platform
+      })), 
+      options
+    );
+
+    return {
+      ...results,
+      collectionUrl: url
+    };
+  }
+}, { connection });
+
+// Handle worker errors
+bulkImportWorker.on('failed', (job, err) => {
+  console.error(`Bulk import job ${job.id} failed:`, err);
 });
 
-// Process collection imports
-importQueue.process('collection-import', async (job) => {
-  const { url, limit, options, shop, accessToken } = job.data;
-  const importer = new Importer();
-  const scraper = new Scraper();
-  
-  const session = {
-    shop: shop,
-    accessToken: accessToken
-  };
-
-  // 1. Scrape collection
-  const scrapeResult = await scraper.scrapeCollection(url, limit);
-  
-  if (!scrapeResult.success) {
-    throw new Error(`Collection scrape failed: ${scrapeResult.error}`);
-  }
-
-  // 2. Import all products
-  const results = await importer.bulkImport(
-    session, 
-    scrapeResult.products.map(p => ({
-      ...p,
-      source_platform: scrapeResult.platform
-    })), 
-    options
-  );
-
-  return {
-    ...results,
-    collectionUrl: url
-  };
+collectionImportWorker.on('failed', (job, err) => {
+  console.error(`Collection import job ${job.id} failed:`, err);
 });
