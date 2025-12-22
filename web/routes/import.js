@@ -3,7 +3,7 @@ import multer from "multer";
 import xlsx from "xlsx";
 import Scraper from "../services/scraper/index.js";
 import Importer from "../services/importer.js";
-import { importQueue } from "../services/queue.js";
+// import { importQueue } from "../services/queue.js";
 import Import from "../models/Import.js";
 
 const router = express.Router();
