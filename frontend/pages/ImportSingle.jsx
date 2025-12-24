@@ -151,34 +151,45 @@ export default function ImportSingle() {
         )}
 
         {preview?.success && (
-          <>
-            <Layout.Section variant="oneHalf">
-              <ProductPreview product={preview.product} />
-            </Layout.Section>
+  <>
+    <Layout.Section variant="oneHalf">
+      {/* Check karein ke product data maujood hai */}
+      {preview?.product ? (
+        <ProductPreview product={preview.product} />
+      ) : (
+        <Card padding="500">
+          <Text>Product data is loading or unavailable...</Text>
+        </Card>
+      )}
+    </Layout.Section>
 
-            <Layout.Section variant="oneHalf">
-              {preview.aiOptimizedData ? (
-                <ProductPreviewComparison
-                  original={preview.original}
-                  aiOptimized={preview.aiOptimizedData}
-                  selections={selections}
-                  onSelectionChange={setSelections}
-                />
-              ) : (
-                <Card title="Product Details">
-                  <BlockStack gap="4">
-                    <Text variant="headingMd">Original Title</Text>
-                    <Text>{preview.product.title}</Text>
-                  </BlockStack>
-                </Card>
-              )}
+    <Layout.Section variant="oneHalf">
+      {/* AI Data check karein aur ensure karein ke original data bhi hai */}
+      {preview?.aiOptimizedData && preview?.original ? (
+        <ProductPreviewComparison
+          original={preview.original}
+          aiOptimized={preview.aiOptimizedData}
+          selections={selections}
+          onSelectionChange={setSelections}
+        />
+      ) : (
+        <Card title="Product Details">
+          <Box padding="400">
+            <BlockStack gap="4">
+              <Text variant="headingMd">Original Title</Text>
+              <Text>{preview?.product?.title || "No title available"}</Text>
+              {loading && <Text color="subdued">Optimizing with AI, please wait...</Text>}
+            </BlockStack>
+          </Box>
+        </Card>
+      )}
 
-              <Box paddingBlockStart="4">
-                <ImportOptions options={options} onChange={setOptions} />
-              </Box>
-            </Layout.Section>
-          </>
-        )}
+      <Box paddingBlockStart="4">
+        <ImportOptions options={options} onChange={setOptions} />
+      </Box>
+    </Layout.Section>
+  </>
+)}
       </Layout>
     </Page>
   );
