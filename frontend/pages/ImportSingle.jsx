@@ -15,9 +15,9 @@ import {
 } from "@shopify/polaris";
 import { ImportIcon } from "@shopify/polaris-icons";
 
-import ProductPreview from "../src/components/ProductPreview";
+import ProductPreviewComparison from "../src/components/ProductPreviewComparison";
 import ImportOptions from "../src/components/ImportOptions";
-import useImport from "../src/hooks/useImport";
+import { useImport } from "../src/hooks/useImport";
 import useApi from "../src/hooks/useApi";
 import { isValidUrl } from "../src/utils/helpers";
 
@@ -49,6 +49,13 @@ export default function ImportSingle() {
     titleSuffix: "",
     replaceVendor: "",
     collectionId: "",
+    aiOptimize: false,
+  });
+
+  const [selections, setSelections] = useState({
+    title: 'ai',
+    description: 'ai',
+    tags: 'ai'
   });
 
   // Load collections
@@ -93,7 +100,10 @@ export default function ImportSingle() {
 
     setImporting(true);
     try {
-      const result = await importSingle(url, options);
+      const result = await importSingle(url, {
+        ...options,
+        selections
+      });
       
       if (result.success) {
         // Show success, optionally redirect
@@ -101,7 +111,7 @@ export default function ImportSingle() {
     } finally {
       setImporting(false);
     }
-  }, [url, options, importSingle]);
+  }, [url, options, selections, importSingle]);
 
   // Handle URL change
   const handleUrlChange = (value) => {
@@ -240,9 +250,11 @@ export default function ImportSingle() {
         {preview?.success && preview.product && (
           <>
             <Layout.Section>
-              <ProductPreview
-                product={preview.product}
-                platform={preview.platform}
+              <ProductPreviewComparison
+                original={preview.original}
+                aiOptimized={preview.aiOptimized}
+                selections={selections}
+                onSelectionChange={setSelections}
               />
             </Layout.Section>
 
