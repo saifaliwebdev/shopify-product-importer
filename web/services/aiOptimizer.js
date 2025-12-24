@@ -10,8 +10,12 @@ export async function optimizeProductSEO(productData) {
   try {
     const { error, output } = await model.run([
       {
+        role: "system",
+        content: "You are an SEO expert. Return ONLY valid JSON with these keys: optimized_title, optimized_description, tags (array). No other text."
+      },
+      {
         role: "user",
-        content: `Optimize this product for SEO and return JSON with optimized_title, optimized_description, and tags array. Product: ${JSON.stringify(productData)}`
+        content: `Optimize this product for SEO: ${productData.title} - ${productData.description.slice(0, 200)}...`
       }
     ]);
 
@@ -24,7 +28,9 @@ export async function optimizeProductSEO(productData) {
     }
 
     try {
-      const optimized = JSON.parse(output);
+      // Clean response - remove markdown code blocks
+      const cleanedOutput = output.replace(/```json|```/g, '').trim();
+      const optimized = JSON.parse(cleanedOutput);
       return {
         ...productData,
         optimized_title: optimized.optimized_title || productData.title,
