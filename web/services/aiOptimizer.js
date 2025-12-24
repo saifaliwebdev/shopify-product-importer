@@ -141,7 +141,7 @@ import Bytez from 'bytez.js';
 
 const AI_OPTIMIZER_KEY = "49985c0d0a357b1f57e62275b6305f47";
 // Gemma-3-1b fast hai, lekin agar result acha na aaye to "Qwen/Qwen2.5-7B-Instruct" try karein
-const AI_MODEL = "google/gemma-3-1b-it"; 
+const AI_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"; 
 
 const optimizer = new Bytez(AI_OPTIMIZER_KEY);
 const model = optimizer.model(AI_MODEL);
