@@ -179,7 +179,7 @@ export async function optimizeProductSEO(productData) {
       },
       {
         role: "user",
-        content: `Optimize this product. Title: ${productData.title}. Description: ${shortDesc}`
+        content: `Optimize this product for SEO: ${productData.title} - ${(productData.description || "").slice(0, 200)}...`
       }
     ]);
 
