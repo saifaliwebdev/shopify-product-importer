@@ -1,6 +1,7 @@
 import shopify from "../shopify.js";
 import Import from "../models/Import.js";
 import ImageHandler from "./imageHandler.js";
+import { optimizeProductSEO } from "./aiOptimizer.js";
 
 class ProductImporter {
   constructor() {
@@ -76,6 +77,7 @@ class ProductImporter {
       titleSuffix = "",
       replaceVendor = "",
       inventoryQuantity = 100,
+      aiOptimize = false,
     } = options;
 
     try {
@@ -98,6 +100,13 @@ class ProductImporter {
       let images = productData.images || [];
       if (downloadImages && images.length > 0) {
         images = await this.imageHandler.processImages(images);
+      }
+
+      // AI SEO Optimization
+      if (aiOptimize) {
+        productData = await optimizeProductSEO(productData);
+        await this.delay(1000); // Rate limiting for free tier
+        console.log("🤖 AI Optimized Product Data:", productData.aiOptimized ? "Success" : "Failed");
       }
 
       // Apply price markup

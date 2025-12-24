@@ -90,6 +90,13 @@ export default function ImportOptions({ options, onChange, collections = [] }) {
             helpText="Recommended for reliability. Images are stored on your Shopify."
           />
 
+          <Checkbox
+            label="Enable AI SEO Optimization"
+            checked={options.aiOptimize || false}
+            onChange={(value) => handleChange("aiOptimize", value)}
+            helpText="Automatically optimize product titles and descriptions for SEO"
+          />
+
           {/* Inventory */}
           <TextField
             label="Default Inventory Quantity"
