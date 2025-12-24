@@ -12,8 +12,6 @@ import {
   Text,
   Spinner,
   Box,
-  Divider,
-  Badge,
 } from "@shopify/polaris";
 import { ImportIcon, MagicIcon } from "@shopify/polaris-icons";
 
@@ -25,7 +23,6 @@ import useApi from "../src/hooks/useApi";
 
 export default function ImportSingle() {
   const navigate = useNavigate();
-  const { get } = useApi();
   const {
     preview,
     importResult,
@@ -37,13 +34,15 @@ export default function ImportSingle() {
   } = useImport();
 
   const [url, setUrl] = useState("");
+  const [importing, setImporting] = useState(false); // FIXED: Added missing state
+  
   const [options, setOptions] = useState({
     status: "draft",
     priceMarkup: 0,
     priceMarkupType: "percentage",
     downloadImages: true,
     inventoryQuantity: 100,
-    aiOptimize: false, // AI Toggle
+    aiOptimize: false,
   });
 
   const [selections, setSelections] = useState({
@@ -52,37 +51,27 @@ export default function ImportSingle() {
     tags: "original",
   });
 
-  // const handlePreview = async () => {
-  //   if (!url) return;
-  //   reset();
-  //   await previewProduct(url);
-  // };
-
   const handlePreview = async () => {
     if (!url) return;
     reset();
-    // Hum options.aiOptimize bhej rahe hain backend ko
     await previewProduct(url, { aiOptimize: options.aiOptimize });
   };
 
-  // const handleImport = async () => {
-  //   const result = await importSingle(url, { ...options, selections });
-  //   if (result.success) { /* Handle success */ }
-  // };
-
-  // handleImport function ko update karein:
   const handleImport = async () => {
     if (!url) return;
-    setImporting(true);
+    setImporting(true); // Ab crash nahi hoga
     try {
-      const result = await importSingle(url, { ...options, selections });
+      // FIXED: Passing 3 separate arguments as required by your new hook
+      const result = await importSingle(url, options, selections);
 
-      if (result.success) {
-        // SUCCESS! Ab sab clear aur reset karein
-        setUrl(""); // URL input khali ho gaya
-        setOptions({ ...options, aiOptimize: false }); // AI toggle reset
-        // Note: ImportResult banner useImport.js hook handle kar raha hai
+      if (result && result.success) {
+        setUrl(""); 
+        setOptions((prev) => ({ ...prev, aiOptimize: false }));
+        // Reset preview taake success ke baad screen saaf ho jaye
+        setTimeout(() => reset(), 3000); 
       }
+    } catch (err) {
+      console.error("Import error:", err);
     } finally {
       setImporting(false);
     }
@@ -94,12 +83,26 @@ export default function ImportSingle() {
       primaryAction={{
         content: "Import to Shopify",
         icon: ImportIcon,
-        disabled: !preview?.success,
+        disabled: !preview?.success || importing,
+        loading: importing, // Button spinner chalega
         onAction: handleImport,
       }}
     >
       <Layout>
-        {/* URL Input Area */}
+        {/* Success Banner */}
+        {importResult?.success && (
+          <Layout.Section>
+            <Banner tone="success" title="Product imported successfully!" />
+          </Layout.Section>
+        )}
+
+        {/* Error Banner */}
+        {error && (
+          <Layout.Section>
+            <Banner tone="critical" title="Error">{error}</Banner>
+          </Layout.Section>
+        )}
+
         <Layout.Section>
           <Card>
             <BlockStack gap="4">
@@ -141,9 +144,7 @@ export default function ImportSingle() {
             <Box padding="20">
               <BlockStack inlineAlign="center" gap="4">
                 <Spinner size="large" />
-                <Text variant="headingMd">
-                  Scraping product data and optimizing...
-                </Text>
+                <Text variant="headingMd">Scraping and optimizing...</Text>
               </BlockStack>
             </Box>
           </Layout.Section>
@@ -151,12 +152,10 @@ export default function ImportSingle() {
 
         {preview?.success && (
           <>
-            {/* Left Side: Images & Variants (Old UI Data) */}
             <Layout.Section variant="oneHalf">
               <ProductPreview product={preview.product} />
             </Layout.Section>
 
-            {/* Right Side: AI vs Original (Sirf tab dikhao jab preview.aiOptimizedData maujood ho) */}
             <Layout.Section variant="oneHalf">
               {preview.aiOptimizedData ? (
                 <ProductPreviewComparison
@@ -170,7 +169,6 @@ export default function ImportSingle() {
                   <BlockStack gap="4">
                     <Text variant="headingMd">Original Title</Text>
                     <Text>{preview.product.title}</Text>
-                    {/* Yahan normal preview dikha dein agar AI off hai */}
                   </BlockStack>
                 </Card>
               )}
