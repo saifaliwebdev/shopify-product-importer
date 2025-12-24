@@ -7,42 +7,36 @@ import Import from '../models/Import.js';
 const router = express.Router();
 
 // Preview endpoint (Sirf ek baar)
+// web/routes/import.js ka preview route replace karein
 router.post('/preview', async (req, res) => {
   try {
-    const { url, aiOptimize } = req.body; // Frontend se flag lein
-
-    // Scrape data using the default export
+    const { url, aiOptimize } = req.body;
     const scrapeResult = await scraper.scrapeProduct(url);
 
     if (!scrapeResult.success) {
-      return res.status(400).json({ 
-        success: false, 
-        error: scrapeResult.error || "Failed to fetch product" 
-      });
+      return res.status(400).json({ success: false, error: scrapeResult.error });
     }
 
     const originalProduct = scrapeResult.product;
     let aiData = null;
 
-    // SIRF TAB AI CHALAYEIN JAB USER NAY ENABLE KIYA HO
     if (aiOptimize) {
-      try {
-        console.log("🤖 Running AI optimization for preview...");
-        aiData = await optimizeProductSEO(originalProduct);
-      } catch (aiError) {
-        console.error('AI optimization failed:', aiError.message);
-      }
+      aiData = await optimizeProductSEO(originalProduct);
     }
 
     res.json({
       success: true,
-      product: originalProduct, // For images and variants
-      original: originalProduct, // For comparison
-      aiOptimized: aiData && aiData.aiOptimized ? aiData : null
+      product: originalProduct,
+      original: originalProduct,
+      // AI data ko sahi format mein bhej rahe hain
+      aiOptimizedData: aiData ? {
+        title: aiData.optimized_title || aiData.title,
+        description: aiData.optimized_description || aiData.description,
+        tags: aiData.optimized_tags || aiData.tags
+      } : null
     });
 
   } catch (error) {
-    console.error('Preview error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

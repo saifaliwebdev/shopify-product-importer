@@ -1,8 +1,19 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Page, Layout, Card, TextField, Button, Banner, BlockStack,
-  InlineStack, Text, Spinner, Box, Divider, Badge
+  Page,
+  Layout,
+  Card,
+  TextField,
+  Button,
+  Banner,
+  BlockStack,
+  InlineStack,
+  Text,
+  Spinner,
+  Box,
+  Divider,
+  Badge,
 } from "@shopify/polaris";
 import { ImportIcon, MagicIcon } from "@shopify/polaris-icons";
 
@@ -15,7 +26,15 @@ import useApi from "../src/hooks/useApi";
 export default function ImportSingle() {
   const navigate = useNavigate();
   const { get } = useApi();
-  const { preview, importResult, loading, error, previewProduct, importSingle, reset } = useImport();
+  const {
+    preview,
+    importResult,
+    loading,
+    error,
+    previewProduct,
+    importSingle,
+    reset,
+  } = useImport();
 
   const [url, setUrl] = useState("");
   const [options, setOptions] = useState({
@@ -28,9 +47,9 @@ export default function ImportSingle() {
   });
 
   const [selections, setSelections] = useState({
-    title: 'original',
-    description: 'original',
-    tags: 'original'
+    title: "original",
+    description: "original",
+    tags: "original",
   });
 
   // const handlePreview = async () => {
@@ -40,13 +59,11 @@ export default function ImportSingle() {
   // };
 
   const handlePreview = async () => {
-  if (!url) return;
-  reset();
-  // Hum options.aiOptimize bhej rahe hain backend ko
-  await previewProduct(url, { aiOptimize: options.aiOptimize });
-};
-
-  
+    if (!url) return;
+    reset();
+    // Hum options.aiOptimize bhej rahe hain backend ko
+    await previewProduct(url, { aiOptimize: options.aiOptimize });
+  };
 
   // const handleImport = async () => {
   //   const result = await importSingle(url, { ...options, selections });
@@ -54,22 +71,22 @@ export default function ImportSingle() {
   // };
 
   // handleImport function ko update karein:
-const handleImport = async () => {
-  if (!url) return;
-  setImporting(true);
-  try {
-    const result = await importSingle(url, { ...options, selections });
-    
-    if (result.success) {
-      // SUCCESS! Ab sab clear aur reset karein
-      setUrl(""); // URL input khali ho gaya
-      setOptions({ ...options, aiOptimize: false }); // AI toggle reset
-      // Note: ImportResult banner useImport.js hook handle kar raha hai
+  const handleImport = async () => {
+    if (!url) return;
+    setImporting(true);
+    try {
+      const result = await importSingle(url, { ...options, selections });
+
+      if (result.success) {
+        // SUCCESS! Ab sab clear aur reset karein
+        setUrl(""); // URL input khali ho gaya
+        setOptions({ ...options, aiOptimize: false }); // AI toggle reset
+        // Note: ImportResult banner useImport.js hook handle kar raha hai
+      }
+    } finally {
+      setImporting(false);
     }
-  } finally {
-    setImporting(false);
-  }
-};
+  };
 
   return (
     <Page
@@ -92,16 +109,25 @@ const handleImport = async () => {
                 onChange={(v) => setUrl(v)}
                 placeholder="Amazon, AliExpress, or Shopify URL"
                 connectedRight={
-                  <Button variant="primary" onClick={handlePreview} loading={loading}>
+                  <Button
+                    variant="primary"
+                    onClick={handlePreview}
+                    loading={loading}
+                  >
                     Fetch Product
                   </Button>
                 }
               />
               <InlineStack gap="4">
-                <Button 
-                  icon={MagicIcon} 
+                <Button
+                  icon={MagicIcon}
                   pressed={options.aiOptimize}
-                  onClick={() => setOptions(prev => ({...prev, aiOptimize: !prev.aiOptimize}))}
+                  onClick={() =>
+                    setOptions((prev) => ({
+                      ...prev,
+                      aiOptimize: !prev.aiOptimize,
+                    }))
+                  }
                 >
                   {options.aiOptimize ? "AI SEO Enabled" : "Enable AI SEO"}
                 </Button>
@@ -115,7 +141,9 @@ const handleImport = async () => {
             <Box padding="20">
               <BlockStack inlineAlign="center" gap="4">
                 <Spinner size="large" />
-                <Text variant="headingMd">Scraping product data and optimizing...</Text>
+                <Text variant="headingMd">
+                  Scraping product data and optimizing...
+                </Text>
               </BlockStack>
             </Box>
           </Layout.Section>
@@ -125,17 +153,28 @@ const handleImport = async () => {
           <>
             {/* Left Side: Images & Variants (Old UI Data) */}
             <Layout.Section variant="oneHalf">
-               <ProductPreview product={preview.product} />
+              <ProductPreview product={preview.product} />
             </Layout.Section>
 
-            {/* Right Side: AI vs Original (New UI Data) */}
+            {/* Right Side: AI vs Original (Sirf tab dikhao jab preview.aiOptimizedData maujood ho) */}
             <Layout.Section variant="oneHalf">
-              <ProductPreviewComparison
-                original={preview.product} // Original data
-                aiOptimized={preview.aiOptimizedData || preview.product} // AI data from backend
-                selections={selections}
-                onSelectionChange={setSelections}
-              />
+              {preview.aiOptimizedData ? (
+                <ProductPreviewComparison
+                  original={preview.original}
+                  aiOptimized={preview.aiOptimizedData}
+                  selections={selections}
+                  onSelectionChange={setSelections}
+                />
+              ) : (
+                <Card title="Product Details">
+                  <BlockStack gap="4">
+                    <Text variant="headingMd">Original Title</Text>
+                    <Text>{preview.product.title}</Text>
+                    {/* Yahan normal preview dikha dein agar AI off hai */}
+                  </BlockStack>
+                </Card>
+              )}
+
               <Box paddingBlockStart="4">
                 <ImportOptions options={options} onChange={setOptions} />
               </Box>
