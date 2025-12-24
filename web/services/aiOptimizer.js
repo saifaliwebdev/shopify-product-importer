@@ -112,9 +112,9 @@ export async function optimizeProductSEO(productData) {
 
       return {
         ...productData,
-        optimized_title: optimized.optimized_title || productData.title,
-        optimized_description: optimized.optimized_description || productData.description,
-        tags: optimized.tags || productData.tags || [],
+        title: optimized.optimized_title || productData.title,
+        description: optimized.optimized_description || productData.description,
+        tags: optimized.tags || productData.tags,
         aiOptimized: true
       };
 
