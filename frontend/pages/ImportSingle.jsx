@@ -33,16 +33,43 @@ export default function ImportSingle() {
     tags: 'original'
   });
 
-  const handlePreview = async () => {
-    if (!url) return;
-    reset();
-    await previewProduct(url);
-  };
+  // const handlePreview = async () => {
+  //   if (!url) return;
+  //   reset();
+  //   await previewProduct(url);
+  // };
 
-  const handleImport = async () => {
+  const handlePreview = async () => {
+  if (!url) return;
+  reset();
+  // Hum options.aiOptimize bhej rahe hain backend ko
+  await previewProduct(url, { aiOptimize: options.aiOptimize });
+};
+
+  
+
+  // const handleImport = async () => {
+  //   const result = await importSingle(url, { ...options, selections });
+  //   if (result.success) { /* Handle success */ }
+  // };
+
+  // handleImport function ko update karein:
+const handleImport = async () => {
+  if (!url) return;
+  setImporting(true);
+  try {
     const result = await importSingle(url, { ...options, selections });
-    if (result.success) { /* Handle success */ }
-  };
+    
+    if (result.success) {
+      // SUCCESS! Ab sab clear aur reset karein
+      setUrl(""); // URL input khali ho gaya
+      setOptions({ ...options, aiOptimize: false }); // AI toggle reset
+      // Note: ImportResult banner useImport.js hook handle kar raha hai
+    }
+  } finally {
+    setImporting(false);
+  }
+};
 
   return (
     <Page
