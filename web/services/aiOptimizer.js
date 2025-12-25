@@ -137,59 +137,93 @@
 
 
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from 'groq-sdk';
 
-// API Key direct yahan rakhein
-const API_KEY = "AIzaSyApy59ias2sbEGoStHB7rhPL80Czebh0nI";
-const genAI = new GoogleGenerativeAI(API_KEY);
+// ✅ API Key from .env (SAFE - not exposed in code)
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY
+});
+
+// ✅ Fast model for SEO optimization
+const AI_MODEL = "llama-3.1-8b-instant";  // Fast & Good quality
 
 export async function optimizeProductSEO(productData) {
-    try {
-        console.log("🤖 Gemini AI Starting...");
+  try {
+    console.log("🤖 Groq AI Starting...");
+    const startTime = Date.now();
 
-        // Stable Model
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // ✅ Non-streaming request (easier for JSON parsing)
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "You are an SEO expert. Return ONLY valid JSON. No explanation, no markdown, just pure JSON."
+        },
+        {
+          role: "user",
+          content: `Optimize this product for SEO.
 
-        const prompt = `
-            Task: Optimize Shopify Product SEO.
-            Product Title: ${productData.title}
-            
-            Return ONLY a valid JSON object. No extra text.
-            {
-                "optimized_title": "SEO Title here",
-                "optimized_description": "2-sentence description here",
-                "tags": ["tag1", "tag2"]
-            }
-        `;
+Product Title: "${productData.title}"
+Product Description: "${(productData.description || "").substring(0, 500)}"
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        let text = response.text();
+Return ONLY this JSON format:
+{
+  "optimized_title": "SEO optimized title (max 70 chars, keywords first, no Hot Sale/Free Shipping)",
+  "optimized_description": "2-3 sentence compelling description with benefits",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
+}`
+        }
+      ],
+      model: AI_MODEL,
+      temperature: 0.7,
+      max_tokens: 1024,
+      stream: false  // ✅ No streaming - get full response
+    });
 
-        // Safayi: Agar Gemini ```json ... ``` bhej de to use hatayein
-        text = text.replace(/```json|```/g, "").trim();
-        
-        const optimized = JSON.parse(text);
+    const endTime = Date.now();
+    console.log(`⚡ Groq Response Time: ${endTime - startTime}ms`);
 
-        return {
-            ...productData,
-            optimized_title: optimized.optimized_title || productData.title,
-            optimized_description: optimized.optimized_description || productData.description,
-            optimized_tags: Array.isArray(optimized.tags) ? optimized.tags : [],
-            aiOptimized: true,
-            aiError: false
-        };
+    // ✅ Extract response
+    const responseText = chatCompletion.choices[0]?.message?.content || "";
+    console.log("📝 AI Response:", responseText.substring(0, 150));
 
-    } catch (err) {
-        console.error('❌ Gemini AI Failed:', err.message);
-        // Fallback: Taake screen white na ho
-        return {
-            ...productData,
-            optimized_title: productData.title,
-            optimized_description: productData.description,
-            optimized_tags: Array.isArray(productData.tags) ? productData.tags : [],
-            aiOptimized: false,
-            aiError: true
-        };
+    // ✅ Clean response (remove markdown if any)
+    let cleanText = responseText
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
+
+    // ✅ Extract JSON
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("No valid JSON in response");
     }
+
+    const optimized = JSON.parse(jsonMatch[0]);
+
+    console.log("✅ AI Optimization Done!");
+    console.log("📝 New Title:", optimized.optimized_title);
+
+    return {
+      ...productData,
+      optimized_title: optimized.optimized_title || productData.title,
+      optimized_description: optimized.optimized_description || productData.description,
+      optimized_tags: Array.isArray(optimized.tags) ? optimized.tags : [],
+      aiOptimized: true,
+      aiError: false
+    };
+
+  } catch (err) {
+    console.error('❌ Groq AI Failed:', err.message);
+    
+    // ✅ Fallback - return original data (no crash)
+    return {
+      ...productData,
+      optimized_title: productData.title,
+      optimized_description: productData.description,
+      optimized_tags: Array.isArray(productData.tags) ? productData.tags : [],
+      aiOptimized: false,
+      aiError: true
+    };
+  }
 }
