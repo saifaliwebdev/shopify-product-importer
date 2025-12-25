@@ -11,6 +11,8 @@ const router = express.Router();
 router.post('/preview', async (req, res) => {
   try {
     const { url, aiOptimize } = req.body;
+    console.log('🔍 Preview Request - URL:', url, 'AI Optimize:', aiOptimize);
+
     const scrapeResult = await scraper.scrapeProduct(url);
 
     if (!scrapeResult.success) {
@@ -21,22 +23,32 @@ router.post('/preview', async (req, res) => {
     let aiData = null;
 
     if (aiOptimize) {
+      console.log('🤖 AI Optimization requested...');
       aiData = await optimizeProductSEO(originalProduct);
+      console.log('✅ AI Data received:', {
+        hasOptimizedTitle: !!aiData?.optimized_title,
+        hasOptimizedDesc: !!aiData?.optimized_description,
+        aiError: aiData?.aiError
+      });
     }
 
-    res.json({
+    const response = {
       success: true,
       product: originalProduct,
       original: originalProduct,
       // AI data ko sahi format mein bhej rahe hain
-      aiOptimizedData: aiData ? {
-        title: aiData.optimized_title || aiData.title,
-        description: aiData.optimized_description || aiData.description,
-        tags: aiData.optimized_tags || aiData.tags
+      aiOptimizedData: aiData && !aiData.aiError ? {
+        optimized_title: aiData.optimized_title || aiData.title,
+        optimized_description: aiData.optimized_description || aiData.description,
+        optimized_tags: aiData.optimized_tags || aiData.tags || []
       } : null
-    });
+    };
+
+    console.log('📤 Sending response with AI data:', !!response.aiOptimizedData);
+    res.json(response);
 
   } catch (error) {
+    console.error('❌ Preview error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -54,9 +66,9 @@ router.post('/single', async (req, res) => {
 
     // User selections apply karne ka logic (agar frontend title/desc bheje)
     if (selections) {
-        if (selections.title === 'ai' && options.aiOptimize) {
-            // AI logic already applied via importer if aiOptimize is true
-        }
+      if (selections.title === 'ai' && options.aiOptimize) {
+        // AI logic already applied via importer if aiOptimize is true
+      }
     }
 
     const importer = new ProductImporter();
