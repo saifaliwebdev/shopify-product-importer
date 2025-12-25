@@ -148,7 +148,7 @@ export async function optimizeProductSEO(productData) {
         console.log("🤖 Gemini AI Starting...");
 
         // Stable Model
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         const prompt = `
             Task: Optimize Shopify Product SEO.
