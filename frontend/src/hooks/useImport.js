@@ -8,12 +8,15 @@ export function useImport() {
   const [jobStatus, setJobStatus] = useState(null);
 
   // Preview product before import
-  const previewProduct = useCallback(async (url) => {
+  const previewProduct = useCallback(async (url, options = {}) => {
     setPreview(null);
     setImportResult(null);
     
     try {
-      const data = await post("/api/import/preview", { url });
+      const data = await post("/api/import/preview", { 
+        url, 
+        aiOptimize: options.aiOptimize || false 
+      });
       setPreview(data);
       return data;
     } catch (err) {
