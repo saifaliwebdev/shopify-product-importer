@@ -139,41 +139,37 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Aapki Gemini API Key
+// API Key direct yahan rakhein
 const API_KEY = "AIzaSyApy59ias2sbEGoStHB7rhPL80Czebh0nI";
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 export async function optimizeProductSEO(productData) {
     try {
-        console.log("🤖 Gemini AI Starting Optimization...");
+        console.log("🤖 Gemini AI Starting...");
 
-        // Gemini 1.5 Flash model fast aur free hai
-        const model = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash",
-            generationConfig: { responseMimeType: "application/json" } // Force JSON
-        });
+        // Stable Model
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = `
-            You are an SEO expert. Optimize this product for a Shopify store.
+            Task: Optimize Shopify Product SEO.
             Product Title: ${productData.title}
-            Product Description: ${productData.description || "No description provided"}
             
-            Return ONLY a JSON object with this structure:
+            Return ONLY a valid JSON object. No extra text.
             {
-                "optimized_title": "SEO friendly title under 60 chars",
-                "optimized_description": "Engaging 2-sentence description",
-                "tags": ["tag1", "tag2", "tag3"]
+                "optimized_title": "SEO Title here",
+                "optimized_description": "2-sentence description here",
+                "tags": ["tag1", "tag2"]
             }
         `;
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        const text = response.text();
-        
-        // JSON Parse karein
-        const optimized = JSON.parse(text);
+        let text = response.text();
 
-        console.log("✅ Gemini Optimization Complete");
+        // Safayi: Agar Gemini ```json ... ``` bhej de to use hatayein
+        text = text.replace(/```json|```/g, "").trim();
+        
+        const optimized = JSON.parse(text);
 
         return {
             ...productData,
@@ -186,7 +182,7 @@ export async function optimizeProductSEO(productData) {
 
     } catch (err) {
         console.error('❌ Gemini AI Failed:', err.message);
-        // Fail hone par original data return karein taake app crash na ho
+        // Fallback: Taake screen white na ho
         return {
             ...productData,
             optimized_title: productData.title,
