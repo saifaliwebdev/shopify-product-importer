@@ -140,84 +140,60 @@
 import Bytez from 'bytez.js';
 
 const AI_OPTIMIZER_KEY = "49985c0d0a357b1f57e62275b6305f47";
-// Gemma-3-1b fast hai, lekin agar result acha na aaye to "Qwen/Qwen2.5-7B-Instruct" try karein
+// 1.5B model aapke "1 concurrent request" plan ke liye best hai kyunki ye fast hai
 const AI_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"; 
 
 const optimizer = new Bytez(AI_OPTIMIZER_KEY);
 const model = optimizer.model(AI_MODEL);
 
-/**
- * ✅ AI ke kisi bhi ajeeb format se saaf text nikalne ke liye
- */
 function extractString(output) {
-  if (!output) return "";
-  if (typeof output === "string") return output;
-
-  // Bytez aksar array bhejta hai: [{ "generated_text": "..." }] ya [{ "message": {"content": "..."}}]
-  const data = Array.isArray(output) ? output[0] : output;
-
-  return (
-    data.generated_text || 
-    data.message?.content || 
-    data.content || 
-    data.text || 
-    (typeof data === "string" ? data : JSON.stringify(data))
-  );
+    if (!output) return "";
+    const data = Array.isArray(output) ? output[0] : output;
+    return data.generated_text || data.message?.content || data.text || JSON.stringify(data);
 }
 
 export async function optimizeProductSEO(productData) {
-  try {
-    console.log("🤖 AI Optimizing:", productData.title);
+    try {
+        console.log("🤖 AI Starting...");
 
-    // Shorten description to save tokens and speed up
-    const shortDesc = (productData.description || "").substring(0, 500);
+        // Prompt ko chota rakhein taake adhoora na aaye
+        const prompt = `Product: ${productData.title}. Task: Provide SEO title and 2-sentence description. Return ONLY valid JSON: {"optimized_title": "...", "optimized_description": "...", "tags": ["tag1"]}`;
 
-    const { error, output } = await model.run([
-      {
-        role: "system",
-        content: "You are an SEO expert. Respond ONLY with a JSON object. No conversation. Format: {\"optimized_title\": \"...\", \"optimized_description\": \"...\", \"tags\": [\"tag1\", \"tag2\"]}"
-      },
-      {
-        role: "user",
-        content: `Optimize this product for SEO: ${productData.title} - ${(productData.description || "").slice(0, 200)}...`
-      }
-    ]);
+        const { error, output } = await model.run([
+            { role: "system", content: "You are a JSON generator. No talk, just JSON." },
+            { role: "user", content: prompt }
+        ]);
 
-    if (error) throw new Error(JSON.stringify(error));
+        if (error) throw new Error("Bytez Error");
 
-    const rawText = extractString(output);
-    console.log("📝 AI Raw Output:", rawText.substring(0, 100));
+        let rawText = extractString(output).trim();
+        
+        // Agar AI ne "```json" likha ho to saaf karein
+        rawText = rawText.replace(/```json|```/g, "").trim();
 
-    // ✅ JSON nikalne ka sabse tagra tarika (Regex)
-    // Ye code block ```json ... ``` ko bhi handle karega aur baki kachre ko bhi
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    
-    if (!jsonMatch) {
-      console.error("❌ No JSON found in AI response");
-      return { ...productData, aiError: true };
+        // JSON extraction (Zaroori hai agar AI faltu baat kare)
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("Invalid JSON structure");
+
+        const optimized = JSON.parse(jsonMatch[0]);
+
+        return {
+            ...productData,
+            optimized_title: optimized.optimized_title || productData.title,
+            optimized_description: optimized.optimized_description || productData.description,
+            optimized_tags: Array.isArray(optimized.tags) ? optimized.tags.join(", ") : "",
+            aiOptimized: true
+        };
+
+    } catch (err) {
+        console.error('❌ AI Failed:', err.message);
+        // AGAR AI FAIL HO JAYE TO ORIGINAL DATA WAPAS BHEJEIN (Is se white screen nahi hogi)
+        return {
+            ...productData,
+            optimized_title: productData.title,
+            optimized_description: productData.description,
+            optimized_tags: productData.tags || "",
+            aiError: true
+        };
     }
-
-    const cleanJsonString = jsonMatch[0]
-      .replace(/\\n/g, " ") // New lines hatao
-      .replace(/\s+/g, " "); // Extra spaces hatao
-
-    const optimized = JSON.parse(cleanJsonString);
-
-    return {
-      // Original data preserve rakhen taake comparison dikh sake
-      ...productData, 
-      optimized_title: optimized.optimized_title || productData.title,
-      optimized_description: optimized.optimized_description || productData.description,
-      optimized_tags: Array.isArray(optimized.tags) ? optimized.tags.join(", ") : (optimized.tags || ""),
-      aiOptimized: true
-    };
-
-  } catch (err) {
-    console.error('❌ AI Optimizer Error:', err.message);
-    return {
-      ...productData,
-      aiError: true,
-      error_msg: err.message
-    };
-  }
 }

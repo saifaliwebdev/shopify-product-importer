@@ -164,8 +164,23 @@ export default function ImportSingle() {
     </Layout.Section>
 
     <Layout.Section variant="oneHalf">
-      {/* AI Data check karein aur ensure karein ke original data bhi hai */}
-      {preview?.aiOptimizedData && preview?.original ? (
+  {/* 1. Check: Agar loading ho rahi hai to Comparison nahi, balki loading state dikhao */}
+  {loading ? (
+    <Card title="AI Optimizing...">
+      <Box padding="400">
+        <BlockStack gap="4">
+          <Text variant="headingMd">Original Title</Text>
+          <Text>{preview?.product?.title}</Text>
+          <Box paddingBlockStart="200">
+             <Text color="subdued">🤖 AI is generating SEO content, please wait (this can take 10-20s)...</Text>
+          </Box>
+        </BlockStack>
+      </Box>
+    </Card>
+  ) : (
+    /* 2. Check: Loading khatam honay ke baad, dekho AI ka data sahi aaya ya nahi */
+    <>
+      {preview?.aiOptimizedData?.optimized_title && preview?.original ? (
         <ProductPreviewComparison
           original={preview.original}
           aiOptimized={preview.aiOptimizedData}
@@ -173,21 +188,28 @@ export default function ImportSingle() {
           onSelectionChange={setSelections}
         />
       ) : (
+        /* 3. Fallback: Agar AI fail ho gaya ya data adhoora hai (Kush...), to ye dikhao */
         <Card title="Product Details">
           <Box padding="400">
             <BlockStack gap="4">
               <Text variant="headingMd">Original Title</Text>
               <Text>{preview?.product?.title || "No title available"}</Text>
-              {loading && <Text color="subdued">Optimizing with AI, please wait...</Text>}
+              {preview?.success && (
+                <Banner tone="warning">
+                  AI was unable to optimize this product description. You can still import using original details.
+                </Banner>
+              )}
             </BlockStack>
           </Box>
         </Card>
       )}
+    </>
+  )}
 
-      <Box paddingBlockStart="4">
-        <ImportOptions options={options} onChange={setOptions} />
-      </Box>
-    </Layout.Section>
+  <Box paddingBlockStart="4">
+    <ImportOptions options={options} onChange={setOptions} />
+  </Box>
+</Layout.Section>
   </>
 )}
       </Layout>
