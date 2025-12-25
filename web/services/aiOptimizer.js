@@ -137,62 +137,62 @@
 
 
 
-import Bytez from 'bytez.js';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const AI_OPTIMIZER_KEY = "49985c0d0a357b1f57e62275b6305f47";
-// 1.5B model aapke "1 concurrent request" plan ke liye best hai kyunki ye fast hai
-const AI_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"; 
-
-const optimizer = new Bytez(AI_OPTIMIZER_KEY);
-const model = optimizer.model(AI_MODEL);
-
-function extractString(output) {
-    if (!output) return "";
-    const data = Array.isArray(output) ? output[0] : output;
-    return data.generated_text || data.message?.content || data.text || JSON.stringify(data);
-}
+// Aapki Gemini API Key
+const API_KEY = "AIzaSyApy59ias2sbEGoStHB7rhPL80Czebh0nI";
+const genAI = new GoogleGenerativeAI(API_KEY);
 
 export async function optimizeProductSEO(productData) {
     try {
-        console.log("🤖 AI Starting...");
+        console.log("🤖 Gemini AI Starting Optimization...");
 
-        // Prompt ko chota rakhein taake adhoora na aaye
-        const prompt = `Product: ${productData.title}. Task: Provide SEO title and 2-sentence description. Return ONLY valid JSON: {"optimized_title": "...", "optimized_description": "...", "tags": ["tag1"]}`;
+        // Gemini 1.5 Flash model fast aur free hai
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            generationConfig: { responseMimeType: "application/json" } // Force JSON
+        });
 
-        const { error, output } = await model.run([
-            { role: "system", content: "You are a JSON generator. No talk, just JSON." },
-            { role: "user", content: prompt }
-        ]);
+        const prompt = `
+            You are an SEO expert. Optimize this product for a Shopify store.
+            Product Title: ${productData.title}
+            Product Description: ${productData.description || "No description provided"}
+            
+            Return ONLY a JSON object with this structure:
+            {
+                "optimized_title": "SEO friendly title under 60 chars",
+                "optimized_description": "Engaging 2-sentence description",
+                "tags": ["tag1", "tag2", "tag3"]
+            }
+        `;
 
-        if (error) throw new Error("Bytez Error");
-
-        let rawText = extractString(output).trim();
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
         
-        // Agar AI ne "```json" likha ho to saaf karein
-        rawText = rawText.replace(/```json|```/g, "").trim();
+        // JSON Parse karein
+        const optimized = JSON.parse(text);
 
-        // JSON extraction (Zaroori hai agar AI faltu baat kare)
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Invalid JSON structure");
-
-        const optimized = JSON.parse(jsonMatch[0]);
+        console.log("✅ Gemini Optimization Complete");
 
         return {
             ...productData,
             optimized_title: optimized.optimized_title || productData.title,
             optimized_description: optimized.optimized_description || productData.description,
-            optimized_tags: Array.isArray(optimized.tags) ? optimized.tags.join(", ") : "",
-            aiOptimized: true
+            optimized_tags: Array.isArray(optimized.tags) ? optimized.tags : [],
+            aiOptimized: true,
+            aiError: false
         };
 
     } catch (err) {
-        console.error('❌ AI Failed:', err.message);
-        // AGAR AI FAIL HO JAYE TO ORIGINAL DATA WAPAS BHEJEIN (Is se white screen nahi hogi)
+        console.error('❌ Gemini AI Failed:', err.message);
+        // Fail hone par original data return karein taake app crash na ho
         return {
             ...productData,
             optimized_title: productData.title,
             optimized_description: productData.description,
-            optimized_tags: productData.tags || "",
+            optimized_tags: Array.isArray(productData.tags) ? productData.tags : [],
+            aiOptimized: false,
             aiError: true
         };
     }
