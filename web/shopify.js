@@ -15,17 +15,25 @@ console.log("====================");
 // MongoDB Session Storage - Yeh state persist karega!
 let sessionStorage;
 
-try {
-  sessionStorage = new MongoDBSessionStorage(
-    process.env.MONGODB_URI,
-    "product-importer"
-  );
-  console.log("✅ MongoDB Session Storage initialized");
-} catch (error) {
-  console.error("❌ MongoDB Session Storage initialization failed:", error.message);
-  console.log("⚠️  Falling back to in-memory session storage");
+if (process.env.MONGODB_URI) {
+  try {
+    sessionStorage = new MongoDBSessionStorage(
+      process.env.MONGODB_URI,
+      "product-importer"
+    );
+    console.log("✅ MongoDB Session Storage initialized");
+  } catch (error) {
+    console.error("❌ MongoDB Session Storage initialization failed:", error.message);
+    console.log("⚠️  Falling back to in-memory session storage");
+    sessionStorage = null;
+  }
+} else {
+  console.log("⚠️ MONGODB_URI not set. Running without database.");
+  sessionStorage = null;
+}
 
-  // Fallback to simple storage
+// Fallback to in-memory storage if MongoDB failed or not configured
+if (!sessionStorage) {
   sessionStorage = {
     sessions: new Map(),
     async storeSession(session) {
