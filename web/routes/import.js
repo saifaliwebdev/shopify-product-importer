@@ -97,8 +97,41 @@ router.post('/single', async (req, res) => {
 
     res.json(result);
 
+  }
+});
+
+// Get import history
+router.get('/history', async (req, res) => {
+  try {
+    const session = res.locals.shopify.session;
+    const { page = 1, limit = 20, status } = req.query;
+
+    const query = { shop: session.shop };
+
+    // Filter by status if provided
+    if (status) {
+      const statuses = status.split(',');
+      query.status = { $in: statuses };
+    }
+
+    const imports = await Import.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const total = await Import.countDocuments(query);
+
+    res.json({
+      imports,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
-    console.error('Import error:', error.message);
+    console.error('❌ History fetch error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
