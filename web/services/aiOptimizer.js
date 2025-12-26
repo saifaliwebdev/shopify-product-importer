@@ -161,22 +161,26 @@ export async function optimizeProductSEO(productData) {
         },
         {
           role: "user",
-          content: `Optimize this product for SEO.
+          content: `Optimize this product for SEO and create a professional description.
 
 Product Title: "${productData.title}"
 Product Description: "${(productData.description || "").substring(0, 500)}"
 
-Return ONLY this JSON format (single line, no line breaks in strings):
+Return ONLY this JSON format (single line, use HTML entities for special chars):
+
 {
-  "optimized_title": "SEO optimized title (max 70 chars, keywords first, no Hot Sale/Free Shipping)",
-  "optimized_description": "2-3 sentence compelling description with benefits (no line breaks)",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
-}`
+  "optimized_title": "SEO optimized title (max 70 chars, keywords first, no promotional words like Hot Sale/Free Shipping)",
+  "optimized_description": "Professional HTML formatted description with: <p> tags for paragraphs, <strong> for bold text, bullet points using ✔ or • symbols, emojis where appropriate (✨🔹💎), highlight key features and benefits in an engaging way. Make it look premium and professional. Use <br> for line breaks. Keep it concise but impactful (150-200 words).",
+  "tags": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"]
+}
+
+Example format for description:
+"<p><strong>✨ Premium Product Name ✨</strong></p><p>🔹 <strong>Key Features:</strong><br>✔ Feature 1<br>✔ Feature 2<br>✔ Feature 3</p><p>💎 Perfect for [use case]! 💎</p>"`
         }
       ],
       model: AI_MODEL,
       temperature: 0.7,
-      max_tokens: 1024,
+      max_tokens: 2048,  // ✅ Increased for formatted descriptions
       stream: false  // ✅ No streaming - get full response
     });
 
