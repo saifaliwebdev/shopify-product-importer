@@ -97,6 +97,9 @@ router.post('/single', async (req, res) => {
 
     res.json(result);
 
+  } catch (error) {
+    console.error('Import error:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
