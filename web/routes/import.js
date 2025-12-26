@@ -103,7 +103,9 @@ router.post('/single', async (req, res) => {
   }
 });
 
-// Get import history
+// Get import history - TEMPORARILY DISABLED
+// TODO: Re-enable after MongoDB is properly configured
+/*
 router.get('/history', async (req, res) => {
   try {
     const session = res.locals.shopify.session;
@@ -138,5 +140,6 @@ router.get('/history', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+*/
 
 export default router;
