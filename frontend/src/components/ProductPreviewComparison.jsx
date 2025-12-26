@@ -9,9 +9,9 @@ import {
   Divider
 } from '@shopify/polaris';
 
-export default function ProductPreviewComparison({ 
-  original, 
-  aiOptimized, 
+export default function ProductPreviewComparison({
+  original,
+  aiOptimized,
   selections,
   onSelectionChange
 }) {
@@ -53,7 +53,7 @@ export default function ProductPreviewComparison({
           />
           <SelectionCard
             title="AI Optimized Title"
-            content={aiOptimized?.title}
+            content={aiOptimized?.optimized_title}
             selected={selections.title === 'ai'}
             onSelect={() => handleSelectionChange('title', 'ai')}
             ai
@@ -74,7 +74,7 @@ export default function ProductPreviewComparison({
           />
           <SelectionCard
             title="AI Optimized Description"
-            content={aiOptimized?.description?.slice(0, 200) + '...'}
+            content={aiOptimized?.optimized_description?.slice(0, 200) + '...'}
             selected={selections.description === 'ai'}
             onSelect={() => handleSelectionChange('description', 'ai')}
             ai
@@ -95,7 +95,7 @@ export default function ProductPreviewComparison({
           />
           <SelectionCard
             title="AI Generated Tags"
-            content={aiOptimized?.tags?.join(', ')}
+            content={aiOptimized?.optimized_tags?.join(', ')}
             selected={selections.tags === 'ai'}
             onSelect={() => handleSelectionChange('tags', 'ai')}
             ai
