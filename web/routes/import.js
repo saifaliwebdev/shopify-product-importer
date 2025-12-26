@@ -64,10 +64,31 @@ router.post('/single', async (req, res) => {
 
     let productToImport = scrapeResult.product;
 
-    // User selections apply karne ka logic (agar frontend title/desc bheje)
-    if (selections) {
-      if (selections.title === 'ai' && options.aiOptimize) {
-        // AI logic already applied via importer if aiOptimize is true
+    // ✅ Apply user selections (AI vs Original)
+    if (selections && options.aiOptimize) {
+      console.log('🔄 Applying user selections:', selections);
+
+      // Get AI optimized data
+      const aiData = await optimizeProductSEO(productToImport);
+
+      if (aiData && !aiData.aiError) {
+        // Apply title selection
+        if (selections.title === 'ai' && aiData.optimized_title) {
+          productToImport.title = aiData.optimized_title;
+          console.log('✅ Using AI title');
+        }
+
+        // Apply description selection
+        if (selections.description === 'ai' && aiData.optimized_description) {
+          productToImport.description = aiData.optimized_description;
+          console.log('✅ Using AI description');
+        }
+
+        // Apply tags selection
+        if (selections.tags === 'ai' && aiData.optimized_tags) {
+          productToImport.tags = aiData.optimized_tags;
+          console.log('✅ Using AI tags');
+        }
       }
     }
 

@@ -11,11 +11,11 @@ export function useImport() {
   const previewProduct = useCallback(async (url, options = {}) => {
     setPreview(null);
     setImportResult(null);
-    
+
     try {
-      const data = await post("/api/import/preview", { 
-        url, 
-        aiOptimize: options.aiOptimize || false 
+      const data = await post("/api/import/preview", {
+        url,
+        aiOptimize: options.aiOptimize || false
       });
       setPreview(data);
       return data;
@@ -25,11 +25,11 @@ export function useImport() {
   }, [post]);
 
   // Import single product
-  const importSingle = useCallback(async (url, options = {}) => {
+  const importSingle = useCallback(async (url, options = {}, selections = {}) => {
     setImportResult(null);
-    
+
     try {
-      const data = await post("/api/import/single", { url, options });
+      const data = await post("/api/import/single", { url, options, selections });
       setImportResult(data);
       return data;
     } catch (err) {
@@ -78,7 +78,7 @@ export function useImport() {
   const pollJobStatus = useCallback(async (jobId, onProgress, interval = 2000) => {
     const poll = async () => {
       const status = await checkJobStatus(jobId);
-      
+
       if (onProgress) onProgress(status);
 
       if (status.state === "completed" || status.state === "failed") {
