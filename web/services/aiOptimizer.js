@@ -77,7 +77,7 @@
 //     try {
 //       // ✅ FIXED: Extract string from output first
 //       const outputString = extractString(output);
-      
+
 //       if (!outputString) {
 //         console.error('❌ Could not extract string from output');
 //         return {
@@ -96,7 +96,7 @@
 
 //       // Extract JSON from response (in case there's extra text)
 //       const jsonMatch = cleanedOutput.match(/\{[\s\S]*\}/);
-      
+
 //       if (!jsonMatch) {
 //         console.error('❌ No JSON found in response:', cleanedOutput);
 //         return {
@@ -106,7 +106,7 @@
 //       }
 
 //       const optimized = JSON.parse(jsonMatch[0]);
-      
+
 //       console.log("✅ AI Optimization successful!");
 //       console.log("📝 New title:", optimized.optimized_title);
 
@@ -157,7 +157,7 @@ export async function optimizeProductSEO(productData) {
       messages: [
         {
           role: "system",
-          content: "You are an SEO expert. Return ONLY valid JSON. No explanation, no markdown, just pure JSON."
+          content: "You are an SEO expert. Return ONLY valid JSON with no newlines or special characters inside string values. No explanation, no markdown, just pure single-line JSON."
         },
         {
           role: "user",
@@ -166,10 +166,10 @@ export async function optimizeProductSEO(productData) {
 Product Title: "${productData.title}"
 Product Description: "${(productData.description || "").substring(0, 500)}"
 
-Return ONLY this JSON format:
+Return ONLY this JSON format (single line, no line breaks in strings):
 {
   "optimized_title": "SEO optimized title (max 70 chars, keywords first, no Hot Sale/Free Shipping)",
-  "optimized_description": "2-3 sentence compelling description with benefits",
+  "optimized_description": "2-3 sentence compelling description with benefits (no line breaks)",
   "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
 }`
         }
@@ -199,7 +199,15 @@ Return ONLY this JSON format:
       throw new Error("No valid JSON in response");
     }
 
-    const optimized = JSON.parse(jsonMatch[0]);
+    // ✅ Sanitize JSON - remove control characters that break parsing
+    const sanitizedJson = jsonMatch[0]
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
+      .replace(/\n/g, ' ')  // Replace newlines with spaces
+      .replace(/\r/g, '')   // Remove carriage returns
+      .replace(/\t/g, ' ')  // Replace tabs with spaces
+      .replace(/\s+/g, ' '); // Normalize multiple spaces
+
+    const optimized = JSON.parse(sanitizedJson);
 
     console.log("✅ AI Optimization Done!");
     console.log("📝 New Title:", optimized.optimized_title);
@@ -215,7 +223,7 @@ Return ONLY this JSON format:
 
   } catch (err) {
     console.error('❌ Groq AI Failed:', err.message);
-    
+
     // ✅ Fallback - return original data (no crash)
     return {
       ...productData,
